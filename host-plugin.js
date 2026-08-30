@@ -13,6 +13,7 @@ export function apply(ctx, config = {}) {
       observers,
       logger: scope.logger,
       pollIntervalMs: config.pollIntervalMs,
+      observationTimeoutMs: config.observationTimeoutMs,
     });
     scope.effect(() => scope.relayEvents.registerMonitorProvider(controller.provider), "relay monitor provider");
     scope.effect(() => {
@@ -21,14 +22,14 @@ export function apply(ctx, config = {}) {
     }, "relay monitor scheduler");
     const attach = agent => {
       if (!scope.agents.roots().includes(agent)) return;
-      installMonitorAgentBridge(agent.ctx, {
+      scope.effect(() => installMonitorAgentBridge(agent.ctx, {
         sessionId: agent.id,
         scheduleTimer: async input => {
           const proposal = controller.createTimer(input);
           await scope.relayEvents.registerWaits(proposal);
           return proposal.timer;
         },
-      });
+      }), "relay monitor tools");
     };
     scope.effect(() => scope.on("agent/created", ({ agent }) => attach(agent)), "relay monitor agent bridge");
     for (const agent of scope.agents.roots()) attach(agent);

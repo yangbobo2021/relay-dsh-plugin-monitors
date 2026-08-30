@@ -1,9 +1,10 @@
 import { createTimerWait } from "./timer.mjs";
 import { MonitorRuntime } from "./runtime.mjs";
 import { validateArtifactBoundary } from "./observer-registry.mjs";
+import { randomUUID } from "node:crypto";
 
 export class RelayMonitorsController {
-  constructor({ events, observers, logger = console, pollIntervalMs = 1_000, workerId = "relay-monitors-worker" }) {
+  constructor({ events, observers, logger = console, pollIntervalMs = 1_000, observationTimeoutMs = 30_000, workerId = `relay-monitors-${randomUUID()}` }) {
     if (events?.apiVersion !== 1) throw new Error(`Monitors requires relayEvents API v1, received ${events?.apiVersion}`);
     this.events = events;
     this.observers = observers;
@@ -13,9 +14,11 @@ export class RelayMonitorsController {
     this.timer = null;
     this.accepting = true;
     this.inFlight = new Set();
+    this.abort = new AbortController();
+    this.observationTimeoutMs = Math.min(30_000, positiveInteger(observationTimeoutMs, 30_000));
     this.runtime = new MonitorRuntime({
       store: monitorStore(events),
-      observer: observers,
+      observer: { observe: input => this.observe(input) },
       relayRuntime: { dispatchSession: sessionId => events.dispatchSession(sessionId) },
       workerId,
     });
@@ -53,8 +56,30 @@ export class RelayMonitorsController {
     if (this.stopped) return;
     this.stopped = true;
     this.accepting = false;
+    this.abort.abort(new Error("Relay Monitors is shutting down"));
     if (this.timer) clearTimeout(this.timer);
     await Promise.allSettled([...this.inFlight]);
+  }
+
+  async observe(input) {
+    const timeout = new AbortController();
+    const signal = AbortSignal.any([this.abort.signal, timeout.signal]);
+    const timer = setTimeout(() => timeout.abort(new Error("Monitor observation timed out")), this.observationTimeoutMs);
+    let onAbort;
+    const cancelled = new Promise((_, reject) => {
+      onAbort = () => {
+        const error = new Error(signal.reason?.message ?? "Monitor cancelled");
+        error.errorClass = this.abort.signal.aborted ? "cancelled" : "observation_timeout";
+        reject(error);
+      };
+      signal.addEventListener("abort", onAbort, { once: true });
+      if (signal.aborted) onAbort();
+    });
+    try { return await Promise.race([cancelled, Promise.resolve().then(() => {
+      signal.throwIfAborted();
+      return this.observers.observe({ ...input, signal });
+    })]); }
+    finally { clearTimeout(timer); signal.removeEventListener("abort", onAbort); }
   }
 
   run(operation) {
@@ -76,6 +101,7 @@ function monitorStore(events) {
     beginMonitorCheck: (...args) => events.beginMonitorCheck(...args),
     completeMonitorCheck: (...args) => events.completeMonitorCheck(...args),
     failMonitorCheck: (...args) => events.failMonitorCheck(...args),
+    abandonMonitorCheck: (...args) => events.abandonMonitorCheck(...args),
     listDueMonitors: (...args) => events.listDueMonitors(...args),
   };
 }

@@ -50,10 +50,13 @@ before Wait replacement.
   validated owner.
 - Shutdown stops scheduling, aborts/awaits in-flight checks, unregisters provider and
   tools, and leaves recoverable durable state.
+- Observations receive an abort signal and have a maximum 30-second deadline.
+  Unload releases the check lease without consuming Waits or the failure budget.
+- Rearming a recurring Monitor does not replay a prior trigger identity, even when
+  that identity disappears and later reappears in the observation.
 - Generated JavaScript and arbitrary network/browser access are rejected in `0.1.0`.
 
 ## Delivery Acceptance
 
 The executable scenario list is in
 [`docs/acceptance-scenarios.md`](docs/acceptance-scenarios.md).
-

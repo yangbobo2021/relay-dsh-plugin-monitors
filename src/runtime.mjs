@@ -52,6 +52,7 @@ export class MonitorRuntime {
         proposedEvents,
       );
     } catch (error) {
+      if (error.errorClass === "cancelled") return this.store.abandonMonitorCheck(snapshot, this.workerId);
       result = this.store.failMonitorCheck(
         snapshot,
         this.workerId,

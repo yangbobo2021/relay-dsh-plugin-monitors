@@ -1,7 +1,7 @@
 import { defineTool } from "@deepseek-ai/dsh-tools";
 
 export function installMonitorAgentBridge(ctx, { sessionId, scheduleTimer }) {
-  ctx.tools.register(defineTool({
+  return ctx.tools.register(defineTool({
     name: "relay_schedule_timer",
     description: "Continue this conversation after a durable positive delay.",
     parameters: {

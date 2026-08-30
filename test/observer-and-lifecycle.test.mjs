@@ -50,7 +50,7 @@ test("controller prepares baseline through a trusted observer", async () => {
   }
 });
 
-test("controller shutdown waits for an in-flight observation and rejects new checks", async () => {
+test("controller shutdown aborts an in-flight observation and rejects new checks", async () => {
   let unblock;
   let started;
   const began = new Promise(resolve => { started = resolve; });
@@ -75,7 +75,7 @@ test("controller shutdown waits for an in-flight observation and rejects new che
   let stopped = false;
   const stopping = controller.stop().then(() => { stopped = true; });
   await new Promise(resolve => setImmediate(resolve));
-  assert.equal(stopped, false);
+  assert.equal(stopped, true);
   assert.throws(() => controller.provider.checkMonitor("m"), /shutting down/);
   unblock({ id: "x", status: "done" });
   await check;
@@ -88,8 +88,20 @@ function fakeEvents(overrides = {}) {
     beginMonitorCheck: () => ({ status: "no_work" }),
     completeMonitorCheck: () => ({ sessionIds: [] }),
     failMonitorCheck: () => ({ sessionIds: [] }),
+    abandonMonitorCheck: () => ({ status: "aborted", sessionIds: [] }),
     listDueMonitors: () => [],
     dispatchSession: async () => ({ status: "no_work" }),
     ...overrides,
   };
 }
+
+test("observation deadlines bound an uncooperative provider and propagate its abort signal", async () => {
+  let signal;
+  const controller = new RelayMonitorsController({ events: fakeEvents(), observationTimeoutMs: 5,
+    observers: { observe(input) { signal = input.signal; return new Promise(() => {}); } },
+  });
+  try {
+    await assert.rejects(controller.observe({}), error => error.errorClass === "observation_timeout");
+    assert.equal(signal.aborted, true);
+  } finally { await controller.stop(); }
+});
