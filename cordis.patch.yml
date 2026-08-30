@@ -1,0 +1,5 @@
+- insert:
+    - id: relay-monitors-host
+      name: 'relay-dsh-plugin-monitors'
+      config:
+        pollIntervalMs: 1000

@@ -1,0 +1,44 @@
+{
+  "name": "relay-dsh-plugin-monitors",
+  "version": "0.1.0",
+  "description": "Durable bound Monitor scheduler and timer provider for Relay Events on DeepSeek Harness.",
+  "keywords": ["dsh-plugin", "deepseek-harness", "monitoring", "timers", "events"],
+  "license": "MIT",
+  "type": "module",
+  "main": "lib/host-plugin.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yangbobo2021/relay-dsh-plugin-monitors.git"
+  },
+  "engines": { "node": ">=22.13" },
+  "publishConfig": { "access": "public" },
+  "scripts": {
+    "prepare:dsh": "scripts/link-dsh-development-peers.sh",
+    "pretest": "npm run prepare:dsh",
+    "prebuild": "npm run prepare:dsh && node -e \"require('node:fs').rmSync('lib',{recursive:true,force:true})\"",
+    "build": "tsdown --config tsdown.config.ts",
+    "typecheck": "node --check host-plugin.js && node --check src/controller.mjs && node --check src/runtime.mjs",
+    "test": "node --test test/*.test.mjs",
+    "verify": "npm run typecheck && npm test && npm run build && npm pack --dry-run"
+  },
+  "exports": {
+    ".": "./lib/host-plugin.js",
+    "./package.json": "./package.json"
+  },
+  "files": ["README.md", "SPEC.md", "docs", "cordis.patch.yml", "lib/host-plugin.js", "lib/host-plugin.js.map"],
+  "dsh": { "bundle": { "patch": "./cordis.patch.yml" } },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": ">=4.0.1 <5",
+    "@deepseek-ai/dsh-tools": ">=0.1.0-rc.5 <0.1.1 || >=0.1.1-rc.0 <0.2.0",
+    "relay-dsh-plugin-events": "^0.1.0"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/cordis": { "optional": true },
+    "@deepseek-ai/dsh-tools": { "optional": true },
+    "relay-dsh-plugin-events": { "optional": true }
+  },
+  "devDependencies": {
+    "relay-dsh-plugin-events": "github:yangbobo2021/relay-dsh-plugin-events#c89d1a233bcce3c63b70295f49d06f3b51e9b6a9",
+    "tsdown": "0.22.2"
+  }
+}

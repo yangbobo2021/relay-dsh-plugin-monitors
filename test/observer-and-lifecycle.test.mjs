@@ -1,0 +1,95 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import { Context } from "@deepseek-ai/cordis";
+
+import { RelayMonitorsController } from "../src/controller.mjs";
+import {
+  RelayMonitorObserverRegistry,
+  validateArtifactBoundary,
+} from "../src/observer-registry.mjs";
+
+test("observer registry rejects duplicates and removes only its own provider", async () => {
+  const registry = new RelayMonitorObserverRegistry(new Context());
+  const provider = { id: "fixture", async observe() { return { state: "ok" }; } };
+  const release = registry.register(provider);
+  assert.throws(() => registry.register(provider), /already registered/);
+  assert.deepEqual(await registry.observe({
+    monitor: { monitor_id: "m", observer: { provider: "fixture" }, detector: { kind: "field_transition" } },
+  }), { state: "ok" });
+  release();
+  await assert.rejects(registry.observe({
+    monitor: { monitor_id: "m", observer: { provider: "fixture" }, detector: { kind: "field_transition" } },
+  }), /not registered/);
+});
+
+test("generated code and privileged capabilities fail before baseline", () => {
+  for (const monitor of [
+    { artifact: { kind: "generated-js" } },
+    { artifact: { kind: "builtin" }, capabilities: { shell: true } },
+    { artifact: { kind: "trusted-provider" }, capabilities: { browser: true } },
+  ]) assert.throws(() => validateArtifactBoundary(monitor), /not allowed/);
+});
+
+test("controller prepares baseline through a trusted observer", async () => {
+  const registry = new RelayMonitorObserverRegistry(new Context());
+  registry.register({ id: "fixture", async observe() { return { id: "PO-1", status: "pending" }; } });
+  const controller = new RelayMonitorsController({ events: fakeEvents(), observers: registry, pollIntervalMs: 60_000 });
+  try {
+    const prepared = await controller.provider.prepare({
+      waits: [{ wait_id: "wait-1" }],
+      monitors: [{
+        monitor_id: "monitor-1", wait_id: "wait-1", lifecycle: "one_shot",
+        observer: { provider: "fixture" }, artifact: { kind: "trusted-provider" },
+        detector: { kind: "field_transition", field: "status", to: "approved", event_type: "po.approved" },
+      }],
+    });
+    assert.deepEqual(prepared[0].baseline_observation, { id: "PO-1", status: "pending" });
+  } finally {
+    await controller.stop();
+  }
+});
+
+test("controller shutdown waits for an in-flight observation and rejects new checks", async () => {
+  let unblock;
+  let started;
+  const began = new Promise(resolve => { started = resolve; });
+  const blocked = new Promise(resolve => { unblock = resolve; });
+  const registry = new RelayMonitorObserverRegistry(new Context());
+  registry.register({ id: "blocked", async observe() { started(); return blocked; } });
+  const events = fakeEvents({
+    beginMonitorCheck() {
+      return {
+        status: "started",
+        monitor: {
+          monitor_id: "m", observer: { provider: "blocked" },
+          detector: { kind: "field_transition", field: "status", to: "done", event_type: "done" },
+          last_observation: { data: { id: "x", status: "waiting" } },
+        },
+      };
+    },
+  });
+  const controller = new RelayMonitorsController({ events, observers: registry, pollIntervalMs: 60_000 });
+  const check = controller.provider.checkMonitor("m", { force: true });
+  await began;
+  let stopped = false;
+  const stopping = controller.stop().then(() => { stopped = true; });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(stopped, false);
+  assert.throws(() => controller.provider.checkMonitor("m"), /shutting down/);
+  unblock({ id: "x", status: "done" });
+  await check;
+  await stopping;
+});
+
+function fakeEvents(overrides = {}) {
+  return {
+    apiVersion: 1,
+    beginMonitorCheck: () => ({ status: "no_work" }),
+    completeMonitorCheck: () => ({ sessionIds: [] }),
+    failMonitorCheck: () => ({ sessionIds: [] }),
+    listDueMonitors: () => [],
+    dispatchSession: async () => ({ status: "no_work" }),
+    ...overrides,
+  };
+}
