@@ -1,6 +1,6 @@
 {
   "name": "relay-dsh-plugin-monitors",
-  "version": "0.1.0-internal.1",
+  "version": "0.1.0-internal.2",
   "description": "Durable bound Monitor scheduler and timer provider for Relay Events on DeepSeek Harness.",
   "keywords": ["dsh-plugin", "deepseek-harness", "monitoring", "timers", "events"],
   "license": "MIT",
