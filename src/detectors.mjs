@@ -9,9 +9,6 @@ export function detectMonitorEvents({ monitor, previous, current }) {
   if (detector.kind === "unseen_items") {
     return detectUnseenItem(detector, previous, current);
   }
-  if (detector.kind === "deadline_reached") {
-    return detectDeadlineReached(detector, previous, current);
-  }
   if (detector.kind === "snapshot_changed") {
     return detectSnapshotChanged(detector, previous, current);
   }
@@ -70,32 +67,6 @@ function detectUnseenItem(detector, previous, current) {
     key: `${prefix}:${item}`,
     data: { item_id: item, observation: current },
   }];
-}
-
-function detectDeadlineReached(detector, previous, current) {
-  assert.equal(typeof detector.deadline, "string", "deadline_reached requires deadline");
-  assert.equal(typeof detector.event_type, "string", "deadline_reached requires event_type");
-  assert.equal(typeof current.observed_at, "string", "deadline observation requires observed_at");
-  const deadline = Date.parse(detector.deadline);
-  const observedAt = Date.parse(current.observed_at);
-  assert.ok(Number.isFinite(deadline), "deadline_reached deadline must be an ISO timestamp");
-  assert.ok(Number.isFinite(observedAt), "deadline observation observed_at must be an ISO timestamp");
-  if (observedAt < deadline) {
-    return [];
-  }
-  return [{
-    type: detector.event_type,
-    key: `${monitorIdentity(detector)}:${detector.deadline}`,
-    data: {
-      deadline: detector.deadline,
-      observed_at: current.observed_at,
-      resume_prompt: detector.resume_prompt,
-    },
-  }];
-}
-
-function monitorIdentity(detector) {
-  return detector.timer_id ?? "deadline";
 }
 
 function findIdentityField(value) {

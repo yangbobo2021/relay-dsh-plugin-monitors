@@ -10,18 +10,41 @@ import {
 } from "../src/observer-registry.mjs";
 import { validateObservationBoundary } from "../src/controller.mjs";
 
-test("observer registry rejects duplicates and removes only its own provider", async () => {
+test("observer registry rejects duplicates and delegates observation and detection to its provider", async () => {
   const registry = new RelayMonitorObserverRegistry(new Context());
-  const provider = { id: "fixture", async observe() { return { state: "ok" }; } };
+  const provider = {
+    id: "fixture",
+    async observe() { return { state: "ok" }; },
+    detect({ current }) { return [{ type: "fixture.done", key: "done", data: current }]; },
+  };
   const release = registry.register(provider);
   assert.throws(() => registry.register(provider), /already registered/);
   assert.deepEqual(await registry.observe({
     monitor: { monitor_id: "m", observer: { provider: "fixture" }, detector: { kind: "field_transition" } },
   }), { state: "ok" });
+  assert.deepEqual(await registry.detect({
+    monitor: { observer: { provider: "fixture" } }, previous: null, current: { state: "ok" },
+  }), [{ type: "fixture.done", key: "done", data: { state: "ok" } }]);
   release();
   await assert.rejects(registry.observe({
     monitor: { monitor_id: "m", observer: { provider: "fixture" }, detector: { kind: "field_transition" } },
   }), /not registered/);
+});
+
+test("MB04-006/009: observer lifecycle is observable and a result arriving after unload is rejected", async () => {
+  const registry = new RelayMonitorObserverRegistry(new Context());
+  const changes = [];
+  const unsubscribe = registry.subscribe(change => changes.push(change));
+  let release;
+  const pending = new Promise(resolve => { release = resolve; });
+  const dispose = registry.register({ id: "fixture", async observe() { return pending; } });
+  const observation = registry.observe({ monitor: { observer: { provider: "fixture" } } });
+  await new Promise(resolve => setImmediate(resolve));
+  dispose();
+  release({ state: "late" });
+  await assert.rejects(observation, error => error?.errorClass === "provider_unavailable");
+  assert.deepEqual(changes, [{ id: "fixture", state: "registered" }, { id: "fixture", state: "unregistered" }]);
+  unsubscribe();
 });
 
 test("generated code and privileged capabilities fail before baseline", () => {
@@ -32,9 +55,13 @@ test("generated code and privileged capabilities fail before baseline", () => {
   ]) assert.throws(() => validateArtifactBoundary(monitor), /not allowed/);
 });
 
-test("controller prepares baseline through a trusted observer", async () => {
+test("controller prepares baseline through a trusted observer/detector provider", async () => {
   const registry = new RelayMonitorObserverRegistry(new Context());
-  registry.register({ id: "fixture", async observe() { return { id: "PO-1", status: "pending" }; } });
+  registry.register({
+    id: "fixture",
+    async observe() { return { id: "PO-1", status: "pending" }; },
+    detect() { return []; },
+  });
   const controller = new RelayMonitorsController({ events: fakeEvents(), observers: registry, pollIntervalMs: 60_000 });
   try {
     const prepared = await controller.provider.prepare({
@@ -57,7 +84,7 @@ test("controller shutdown aborts an in-flight observation and rejects new checks
   const began = new Promise(resolve => { started = resolve; });
   const blocked = new Promise(resolve => { unblock = resolve; });
   const registry = new RelayMonitorObserverRegistry(new Context());
-  registry.register({ id: "blocked", async observe() { started(); return blocked; } });
+  registry.register({ id: "blocked", async observe() { started(); return blocked; }, detect() { return []; } });
   const events = fakeEvents({
     beginMonitorCheck() {
       return {
@@ -118,4 +145,7 @@ test("EP11-004/007: observation size, depth, field count, cycles, and boundary v
   const cyclic = {};
   cyclic.self = cyclic;
   assert.throws(() => validateObservationBoundary(cyclic), /cycle/u);
+  const shared = { status: "ok" };
+  assert.deepEqual(validateObservationBoundary({ left: shared, right: shared }), { left: shared, right: shared },
+    "a shared acyclic reference is valid JSON structure, not a cycle");
 });
