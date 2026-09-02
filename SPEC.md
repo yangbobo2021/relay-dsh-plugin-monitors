@@ -64,10 +64,17 @@ hooks, caller authorization context, unknown origin fields, credential values, o
 secret handles. Authorization failure hides the whole entry; invalid or failed health
 checks report `unavailable`.
 
-The current registry increment exposes discovery only. Type instantiation, custom
-Bundle artifacts, Capability Providers, sandbox execution, and GitHub migration remain gated by
-the Relay-level Monitor Bundle Platform acceptance plan and must not be inferred from
-the presence of the catalog.
+`relayMonitorBundles.instantiateBundleType()` rechecks authorization and live health,
+validates parameters against the declared bounded JSON Schema subset, invokes the
+factory under a deadline, and validates owner Session, Events, capabilities,
+lifecycle, Wait/Monitor identity, size, depth, and JSON shape. It enriches every
+artifact with the registered type/version/origin. The root-Agent
+`relay_create_monitor_from_type` tool then asks Events to baseline and atomically
+commit the proposal; success is returned only after that commit.
+
+Custom Bundle artifacts, Capability Providers, and sandbox execution remain gated by
+the Relay-level Monitor Bundle Platform acceptance plan. They must not be inferred
+from plugin type instantiation.
 
 ## Reliability And Security
 

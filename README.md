@@ -23,9 +23,11 @@ independent `relay-dsh-plugin-monitor-time` extension.
 The development source additionally exposes a live, localized Monitor Bundle Type
 catalog through the public `relayMonitorBundles` service and the Session-bound
 `relay_list_monitor_bundle_types` Agent tool. The catalog lists capabilities that
-extensions have actually registered; it is not a static support claim. Bundle
-instantiation and Agent-authored Bundle execution are not yet exposed by this
-increment. Core alone intentionally reports an empty Bundle Type catalog.
+extensions have actually registered; it is not a static support claim. An Agent can
+instantiate an available entry with `relay_create_monitor_from_type`; Session
+ownership is derived from the root Agent, and success follows baseline plus atomic
+Wait/Monitor commit. Agent-authored Bundle execution is not yet exposed. Core alone
+intentionally reports an empty Bundle Type catalog.
 
 The older `internal` npm channel remains available for integration testing and
 does not carry this compatibility guarantee. Use the exact `0.2.1`

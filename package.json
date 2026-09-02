@@ -28,7 +28,7 @@
     "pretest": "npm run prepare:dsh",
     "prebuild": "npm run prepare:dsh && node -e \"require('node:fs').rmSync('lib',{recursive:true,force:true})\"",
     "build": "tsdown --config tsdown.config.ts",
-    "typecheck": "node --check host-plugin.js && node --check agent-bridge.js && node --check src/bundle-registry.mjs && node --check src/controller.mjs && node --check src/runtime.mjs",
+    "typecheck": "node --check host-plugin.js && node --check agent-bridge.js && node --check src/bundle-registry.mjs && node --check src/parameter-schema.mjs && node --check src/controller.mjs && node --check src/runtime.mjs",
     "test": "node --test test/*.test.mjs",
     "verify": "npm run typecheck && npm test && npm run build && npm pack --dry-run"
   },

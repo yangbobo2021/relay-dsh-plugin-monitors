@@ -77,3 +77,21 @@ delivery harness.
   proposal factory, including SQLite restart, backward/forward clock, cancellation
   races, dedupe, and bound Session delivery. This prevents a green Core suite from
   falsely implying that separately packaged Time composition works.
+
+## Review 7 — public plugin-type instantiation
+
+- Instantiation and tool tests were written first and failed because neither public
+  method existed. The typed boundary matrix proves invalid values never call the
+  factory; authorization and live health are rechecked at creation time.
+- Security mutations make a factory spoof another Session, undeclared Event,
+  undeclared capability, and unsupported lifecycle. Each fails before the callback
+  that can reach Events.
+- A production Cordis+SQLite test calls `relay_create_monitor_from_type` against the
+  live Time registration and inspects the stored Monitor owner. It reports success
+  only after the real baseline and atomic Events commit.
+- That integration first exposed a false cycle classification for a JSON-serializable
+  shared reference. A paired test now accepts shared DAG nodes and rejects a real
+  ancestor cycle, proving the correction did not disable cycle protection.
+- Factory throw/timeout and DSH tool compilation run with zero skip/todo. Artifact
+  content hashing, concurrent create convergence, plugin migration, and provider-loss
+  recovery remain later release gates and are not claimed here.

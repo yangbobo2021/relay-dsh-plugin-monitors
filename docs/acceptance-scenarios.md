@@ -30,8 +30,8 @@ Official DSH reference: `dd6322d604e00eec1ba5e0c8541159906a21094a`
 
 ## Monitor Bundle Registry Increment
 
-These rows qualify discovery only; they do not qualify Bundle instantiation or custom
-code execution.
+These rows qualify discovery and plugin-type instantiation only; they do not qualify
+custom code execution.
 
 | ID | Scenario | Required result | Evidence |
 | --- | --- | --- | --- |
@@ -46,3 +46,10 @@ code execution.
 | MB01-009 | Configuration state | Four supported states survive; invalid or throwing health checks fail closed as unavailable. | health unit |
 | MB01-010 | Secret-safe projection | Executable hooks, unknown origin fields, credential values, and secret handles are absent. | seeded-secret scan |
 | MB08-001 | Session-bound list tool | Tool accepts no Session or credential input and derives ownership from the root Agent installation context. | DSH tool compiler contract |
+| MB02-001 | Valid plugin instance | Available type validates, baselines, and atomically commits Wait and Monitor. | registry + Cordis + SQLite |
+| MB02-002 | Session derivation | Tool and factory cannot select another Session owner. | security unit + Cordis |
+| MB02-003 | Typed parameters | String/Unicode/integer/boolean/enum/array/object and exact boundary failures execute the declared schema. | table-driven unit |
+| MB02-004 | Declaration narrowing | Factory cannot add Event, capability, or lifecycle outside its registered type. | security unit |
+| MB02-005 | Factory boundary | Throw, timeout, invalid graph, true cycle, and shared-reference cases are explicit before persistence. | fault unit |
+| MB02-006 | Baseline atomicity | Registry success is not tool success; Events baseline/commit must complete first. | Cordis + SQLite |
+| MB08-002 | Create-from-type tool | Tool has no Session input and returns exact durable IDs/next check after commit. | DSH tool compiler + SQLite |

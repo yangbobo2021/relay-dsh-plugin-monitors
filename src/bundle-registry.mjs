@@ -1,4 +1,5 @@
 import { Service } from "@deepseek-ai/cordis";
+import { assertValidParameterSchema, validateParameters } from "./parameter-schema.mjs";
 
 const TYPE_ID = /^[a-z][a-z0-9]*(?:[.-][a-z0-9][a-z0-9-]*)+$/u;
 const STABLE_ID = /^[a-z][a-z0-9]*(?:[._-][a-z0-9][a-z0-9-]*)*$/u;
@@ -11,12 +12,14 @@ const LOCALIZED_FIELDS = ["name", "description", "permissions", "remediation"];
 export class RelayMonitorBundleRegistry extends Service {
   apiVersion = 1;
   #registrations = new Map();
+  #factoryTimeoutMs;
 
-  constructor(ctx) {
+  constructor(ctx, { factoryTimeoutMs = 30_000 } = {}) {
     super(ctx, "relayMonitorBundles");
+    this.#factoryTimeoutMs = positiveInteger(factoryTimeoutMs, 30_000);
   }
 
-  registerBundleType(definition) {
+  registerBundleType = definition => {
     const registration = normalizeBundleType(definition);
     const key = registrationKey(registration);
     if (this.#registrations.has(key)) {
@@ -29,14 +32,44 @@ export class RelayMonitorBundleRegistry extends Service {
       active = false;
       if (this.#registrations.get(key) === registration) this.#registrations.delete(key);
     };
-  }
+  };
 
-  getBundleType(typeId, bundleVersion) {
+  getBundleType = (typeId, bundleVersion) => {
     const registration = this.#registrations.get(registrationKey({ type_id: typeId, bundle_version: bundleVersion }));
     return registration?.definition;
-  }
+  };
 
-  async listBundleTypes({ locale = "en-US", authorization = Object.freeze({}) } = {}) {
+  instantiateBundleType = async ({ typeId, bundleVersion, sessionId, taskSummary, parameters = {}, authorization = {} } = {}) => {
+    if (typeof sessionId !== "string" || !sessionId.trim()) throw new TypeError("authenticated Session is required");
+    if (authorization?.sessionId !== undefined && authorization.sessionId !== sessionId) throw new Error("Session authorization does not match owner");
+    if (typeof taskSummary !== "string" || !taskSummary.trim() || taskSummary.length > 2_000) throw new TypeError("task summary is invalid");
+    const registration = this.#registrations.get(registrationKey({ type_id: typeId, bundle_version: bundleVersion }));
+    if (!registration) throw new Error(`monitor Bundle Type ${typeId}@${bundleVersion} is not registered`);
+    if (!await isAuthorized(registration, authorization)) throw new Error(`monitor Bundle Type ${typeId}@${bundleVersion} is not authorized`);
+    const status = await resolveStatus(registration, authorization);
+    if (status !== "available") throw new Error(`monitor Bundle Type ${typeId}@${bundleVersion} is ${status}`);
+    validateParameters(registration.parameter_schema, parameters);
+    const abort = new AbortController();
+    const timer = setTimeout(() => abort.abort(new Error("monitor Bundle Type factory timed out")), this.#factoryTimeoutMs);
+    try {
+      const factoryInput = deepFreeze(structuredClone({
+        sessionId,
+        taskSummary: taskSummary.trim(),
+        parameters,
+        authorization,
+      }));
+      const timeout = new Promise((_, reject) => abort.signal.addEventListener("abort", () => reject(abort.signal.reason), { once: true }));
+      const proposal = await Promise.race([
+        Promise.resolve().then(() => registration.definition.create({ ...factoryInput, signal: abort.signal })),
+        timeout,
+      ]);
+      return normalizePluginProposal(registration, proposal, { sessionId, taskSummary: taskSummary.trim() });
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+
+  listBundleTypes = async ({ locale = "en-US", authorization = Object.freeze({}) } = {}) => {
     const selectedLocale = locale === "zh-CN" ? "zh-CN" : "en-US";
     const visible = [];
     for (const registration of this.#registrations.values()) {
@@ -46,7 +79,7 @@ export class RelayMonitorBundleRegistry extends Service {
     }
     visible.sort((left, right) => left.type_id.localeCompare(right.type_id, "en") || left.bundle_version - right.bundle_version);
     return Object.freeze(visible);
-  }
+  };
 }
 
 export function normalizeBundleType(definition) {
@@ -61,6 +94,7 @@ export function normalizeBundleType(definition) {
   validateOrigin(definition.origin);
   validateStringArray(definition.event_types, "Event", EVENT_TYPE);
   validateParameterSchema(definition.parameter_schema);
+  assertValidParameterSchema(definition.parameter_schema);
   validateStringArray(definition.capabilities, "capability", STABLE_ID, { allowEmpty: true });
   validateStringArray(definition.lifecycle, "lifecycle", null, { allowed: LIFECYCLES });
   validateLocales(definition.locales);
@@ -149,19 +183,24 @@ function validateStringArray(value, label, pattern, { allowEmpty = false, allowe
 }
 
 function validateBoundedJson(value, label, { maxBytes, maxDepth, maxNodes }) {
-  const stack = [{ value, depth: 0 }];
-  const seen = new Set();
+  const stack = [{ value, depth: 0, leaving: false }];
+  const ancestors = new Set();
   let nodes = 0;
   while (stack.length) {
     const current = stack.pop();
+    if (current.leaving) {
+      ancestors.delete(current.value);
+      continue;
+    }
     if (current.depth > maxDepth) throw new TypeError(`${label} exceeds the depth limit`);
     if (current.value && typeof current.value === "object") {
-      if (seen.has(current.value)) throw new TypeError(`${label} contains a cycle`);
-      seen.add(current.value);
+      if (ancestors.has(current.value)) throw new TypeError(`${label} contains a cycle`);
+      ancestors.add(current.value);
+      stack.push({ value: current.value, depth: current.depth, leaving: true });
       for (const child of Object.values(current.value)) {
         nodes += 1;
         if (nodes > maxNodes) throw new TypeError(`${label} exceeds the field limit`);
-        if (child && typeof child === "object") stack.push({ value: child, depth: current.depth + 1 });
+        if (child && typeof child === "object") stack.push({ value: child, depth: current.depth + 1, leaving: false });
         else if (!["string", "number", "boolean", "undefined"].includes(typeof child) && child !== null) {
           throw new TypeError(`${label} must contain only JSON values`);
         }
@@ -215,8 +254,56 @@ function registrationKey(value) {
   return `${value.type_id}@${value.bundle_version}`;
 }
 
+function normalizePluginProposal(registration, proposal, owner) {
+  if (!proposal || typeof proposal !== "object" || Array.isArray(proposal)) throw new TypeError("monitor Bundle Type factory must return a proposal object");
+  validateBoundedJson(proposal, "monitor Bundle Type factory result", { maxBytes: 1_048_576, maxDepth: 32, maxNodes: 20_000 });
+  const result = structuredClone(proposal);
+  if (result.sessionId !== owner.sessionId) throw new Error("monitor Bundle Type factory returned a different Session owner");
+  if (!Array.isArray(result.waits) || result.waits.length === 0 || !Array.isArray(result.monitors) || result.monitors.length === 0) {
+    throw new TypeError("monitor Bundle Type factory requires waits and monitors");
+  }
+  const declaredEvents = new Set(registration.event_types);
+  const declaredCapabilities = new Set(registration.capabilities);
+  const declaredLifecycle = new Set(registration.lifecycle);
+  const waitIds = new Set();
+  for (const wait of result.waits) {
+    if (typeof wait?.wait_id !== "string" || !wait.wait_id || waitIds.has(wait.wait_id)) throw new TypeError("monitor Bundle Type factory returned an invalid wait id");
+    waitIds.add(wait.wait_id);
+    if (!declaredEvents.has(wait.expected_event)) throw new Error(`monitor Bundle Type factory returned undeclared Event ${wait.expected_event}`);
+  }
+  const monitorIds = new Set();
+  result.monitors = result.monitors.map(monitor => {
+    if (typeof monitor?.monitor_id !== "string" || !monitor.monitor_id || monitorIds.has(monitor.monitor_id)) throw new TypeError("monitor Bundle Type factory returned an invalid monitor id");
+    monitorIds.add(monitor.monitor_id);
+    if (!waitIds.has(monitor.wait_id)) throw new TypeError("monitor Bundle Type factory returned a Monitor without its Wait");
+    if (!declaredLifecycle.has(monitor.lifecycle)) throw new Error(`monitor Bundle Type factory returned undeclared lifecycle ${monitor.lifecycle}`);
+    if (monitor.detector?.event_type && !declaredEvents.has(monitor.detector.event_type)) {
+      throw new Error(`monitor Bundle Type factory returned undeclared Event ${monitor.detector.event_type}`);
+    }
+    for (const [capability, request] of Object.entries(monitor.capabilities ?? {})) {
+      if (request !== false && request != null && !declaredCapabilities.has(capability)) {
+        throw new Error(`monitor Bundle Type factory returned undeclared capability ${capability}`);
+      }
+    }
+    return {
+      ...monitor,
+      artifact: {
+        ...(monitor.artifact ?? {}),
+        type_id: registration.type_id,
+        bundle_version: registration.bundle_version,
+        origin: structuredClone(registration.origin),
+      },
+    };
+  });
+  return { ...result, sessionId: owner.sessionId, taskSummary: owner.taskSummary };
+}
+
 function deepFreeze(value) {
   if (!value || typeof value !== "object" || Object.isFrozen(value)) return value;
   for (const child of Object.values(value)) deepFreeze(child);
   return Object.freeze(value);
+}
+
+function positiveInteger(value, fallback) {
+  return Number.isSafeInteger(value) && value > 0 ? value : fallback;
 }

@@ -21,8 +21,10 @@ Monitor 执行。Core 包含实时 Bundle Type 目录、可信 Observer/Detector
 
 当前开发源码还通过公共 `relayMonitorBundles` 服务和与 Session 绑定的
 `relay_list_monitor_bundle_types` Agent 工具提供实时、双语的 Monitor Bundle Type
-目录。目录只列出扩展实际注册的能力，不是静态支持声明。本增量尚未开放 Bundle
-实例化和 Agent 自定义 Bundle 执行。只安装 Core 时，Bundle Type 目录按设计为空。
+目录。目录只列出扩展实际注册的能力，不是静态支持声明。Agent 可以通过
+`relay_create_monitor_from_type` 实例化可用类型；Session 归属来自根 Agent，只有基线与
+Wait/Monitor 原子提交完成后才返回成功。Agent 自定义 Bundle 执行尚未开放。只安装 Core
+时，Bundle Type 目录按设计为空。
 
 旧的 `internal` npm 通道继续用于集成测试，不包含此次兼容保证。请使用上方最新版
 DSH 命令中精确的 `0.2.1` 版本，不要替换为 `@internal`。

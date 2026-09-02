@@ -26,7 +26,17 @@ export function apply(ctx, config = {}) {
       if (!scope.agents.roots().includes(agent)) return;
       scope.effect(() => installMonitorAgentBridge(agent.ctx, {
         sessionId: agent.id,
+        authorization: { cwd: agent.session?.header?.cwd ?? null },
         listBundleTypes: input => bundles.listBundleTypes(input),
+        createBundleFromType: async input => {
+          const proposal = await bundles.instantiateBundleType(input);
+          const registration = await scope.relayEvents.registerWaits(proposal);
+          return {
+            monitorIds: registration.monitors.map(monitor => monitor.monitor_id),
+            waitIds: registration.waits.map(wait => wait.wait_id),
+            nextCheckAt: registration.monitors.map(monitor => monitor.next_check_at).filter(Boolean).sort()[0] ?? null,
+          };
+        },
       }), "relay monitor tools");
     };
     scope.effect(() => scope.on("agent/created", ({ agent }) => attach(agent)), "relay monitor agent bridge");
