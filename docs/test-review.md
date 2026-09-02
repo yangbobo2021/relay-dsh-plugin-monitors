@@ -61,3 +61,19 @@ delivery harness.
   tsdown bundle, and `npm pack --dry-run`. No skip or todo is accepted. This increment
   does not claim instantiation, UI, official-DSH hot-plugin, or sandbox acceptance;
   those remain explicit later release gates.
+
+## Review 6 — Time extension separation
+
+- A cross-package boundary assertion was added before the refactor and failed on
+  Core's timer import, deadline detector, and convenience tool as intended.
+- Core now has no Time identifiers in host, controller, observer registry, detector,
+  or Agent bridge. Provider-owned `detect()` executes through the production runtime;
+  generic legacy providers retain only domain-neutral detector compatibility.
+- The real Cordis hot-install test initially failed even though registry unit tests
+  were green: Cordis wraps Service calls with a tracing proxy, and JavaScript private
+  fields rejected the proxied receiver. Binding the public registry methods to the
+  Service instance preserved private state and fixed actual extension use.
+- Root composition now constructs Time through the extension's public provider and
+  proposal factory, including SQLite restart, backward/forward clock, cancellation
+  races, dedupe, and bound Session delivery. This prevents a green Core suite from
+  falsely implying that separately packaged Time composition works.

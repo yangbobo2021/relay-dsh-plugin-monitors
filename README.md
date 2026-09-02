@@ -1,6 +1,7 @@
 # Relay Monitors for DeepSeek Harness
 
-> **Now supports the latest DSH `0.1.2-alpha.3`.** Plugin `0.2.1` is verified on DSH `0.1.2-alpha.3`, `0.1.2-alpha.2`, and `0.1.1-rc.2`. [Install it and try the latest DSH](https://www.npmjs.com/package/relay-dsh-plugin-monitors) · [Compatibility details](docs/dsh-0.1.2-alpha.3.md).
+> Published `0.2.1` supports DSH `0.1.2-alpha.3`. This source tree is developing
+> Monitor Core `0.3.0`; install the Time extension separately when using this source.
 
 > **Release channels:** `latest` → `0.2.1`; `next` → `0.2.1-rc.1`.
 
@@ -13,17 +14,18 @@ npx @deepseek-ai/dsh@0.1.2-alpha.3 web
 
 English | [中文](README.zh.md)
 
-`relay-dsh-plugin-monitors` adds durable bound Monitor execution to
-`relay-dsh-plugin-events`. The current internal build includes the one-shot durable timer,
-trusted observer-provider registration, deterministic transition/unseen-item
-detectors, leased checks, and lifecycle recovery.
+`relay-dsh-plugin-monitors` adds extensible durable bound Monitor execution to
+`relay-dsh-plugin-events`. Core includes the live Bundle Type catalog, trusted
+Observer/Detector registration, generic deterministic transition detectors, leased
+checks, and lifecycle recovery. Time and `relay_schedule_timer` now live in the
+independent `relay-dsh-plugin-monitor-time` extension.
 
 The development source additionally exposes a live, localized Monitor Bundle Type
 catalog through the public `relayMonitorBundles` service and the Session-bound
 `relay_list_monitor_bundle_types` Agent tool. The catalog lists capabilities that
 extensions have actually registered; it is not a static support claim. Bundle
 instantiation and Agent-authored Bundle execution are not yet exposed by this
-increment.
+increment. Core alone intentionally reports an empty Bundle Type catalog.
 
 The older `internal` npm channel remains available for integration testing and
 does not carry this compatibility guarantee. Use the exact `0.2.1`

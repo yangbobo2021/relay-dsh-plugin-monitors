@@ -1,4 +1,5 @@
 import { Service } from "@deepseek-ai/cordis";
+import { detectMonitorEvents } from "./detectors.mjs";
 
 const PROVIDER_ID = /^[a-z][a-z0-9._-]{0,63}$/u;
 
@@ -6,12 +7,8 @@ export class RelayMonitorObserverRegistry extends Service {
   apiVersion = 1;
   providers = new Map();
 
-  constructor(ctx, { clock = () => new Date() } = {}) {
+  constructor(ctx) {
     super(ctx, "relayMonitorObservers");
-    this.providers.set("clock", {
-      id: "clock",
-      async observe() { return { observed_at: clock().toISOString() }; },
-    });
   }
 
   register(provider) {
@@ -30,8 +27,14 @@ export class RelayMonitorObserverRegistry extends Service {
     const providerId = resolveObserverProvider(input.monitor);
     const provider = this.providers.get(providerId);
     if (!provider) throw new Error(`monitor observer ${providerId} is not registered`);
-    validateProviderDetector(providerId, input.monitor.detector);
     return provider.observe(input);
+  }
+
+  async detect(input) {
+    const providerId = resolveObserverProvider(input.monitor);
+    const provider = this.providers.get(providerId);
+    if (!provider) throw new Error(`monitor observer ${providerId} is not registered`);
+    return provider.detect ? provider.detect(input) : detectMonitorEvents(input);
   }
 }
 
@@ -40,13 +43,15 @@ export function validateObserverProvider(provider) {
     throw new TypeError("monitor observer requires a lowercase stable id");
   }
   if (typeof provider.observe !== "function") throw new TypeError("monitor observer requires observe()");
+  if (provider.detect !== undefined && typeof provider.detect !== "function") {
+    throw new TypeError("monitor observer detect must be a function");
+  }
   return provider;
 }
 
 export function resolveObserverProvider(monitor) {
   const explicit = monitor.observer?.provider;
   if (typeof explicit === "string" && explicit.trim()) return explicit.trim();
-  if (monitor.detector?.kind === "deadline_reached") return "clock";
   throw new Error(`monitor ${monitor.monitor_id ?? "proposal"} requires observer.provider`);
 }
 
@@ -59,11 +64,5 @@ export function validateArtifactBoundary(monitor) {
     if (kind === forbidden || monitor.capabilities?.[forbidden] === true) {
       throw new Error(`monitor capability ${forbidden} is not allowed`);
     }
-  }
-}
-
-function validateProviderDetector(providerId, detector) {
-  if (providerId === "clock" && detector?.kind !== "deadline_reached") {
-    throw new Error("clock observer supports only deadline_reached");
   }
 }

@@ -1,4 +1,3 @@
-import { createTimerWait } from "./timer.mjs";
 import { MonitorRuntime } from "./runtime.mjs";
 import { validateArtifactBoundary } from "./observer-registry.mjs";
 import { randomUUID } from "node:crypto";
@@ -18,7 +17,10 @@ export class RelayMonitorsController {
     this.observationTimeoutMs = Math.min(30_000, positiveInteger(observationTimeoutMs, 30_000));
     this.runtime = new MonitorRuntime({
       store: monitorStore(events),
-      observer: { observe: input => this.observe(input) },
+      observer: {
+        observe: input => this.observe(input),
+        detect: input => this.observers.detect(input),
+      },
       relayRuntime: { dispatchSession: sessionId => events.dispatchSession(sessionId) },
       workerId,
     });
@@ -36,10 +38,6 @@ export class RelayMonitorsController {
   async prepare({ waits, monitors }) {
     for (const monitor of monitors) validateArtifactBoundary(monitor);
     return this.runtime.prepare({ waits, monitors });
-  }
-
-  createTimer(input) {
-    return createTimerWait(input);
   }
 
   schedule(delay = this.pollIntervalMs) {

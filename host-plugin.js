@@ -26,11 +26,6 @@ export function apply(ctx, config = {}) {
       if (!scope.agents.roots().includes(agent)) return;
       scope.effect(() => installMonitorAgentBridge(agent.ctx, {
         sessionId: agent.id,
-        scheduleTimer: async input => {
-          const proposal = controller.createTimer(input);
-          await scope.relayEvents.registerWaits(proposal);
-          return proposal.timer;
-        },
         listBundleTypes: input => bundles.listBundleTypes(input),
       }), "relay monitor tools");
     };

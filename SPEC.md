@@ -1,31 +1,30 @@
 # Relay DSH Monitors Plugin Specification
 
-Status: Accepted `0.2.1` behavior plus Monitor Bundle Platform development contracts
+Status: Monitor Core `0.3.0` development delivery specification
 
 ## Purpose
 
-`relay-dsh-plugin-monitors` contributes durable bound Monitor execution to the
-`relayEvents` service. Version `0.2.1` delivers the built-in one-shot timer and a
-  trusted observer-provider contract for deterministic `field_transition`,
-  `unseen_items`, and `snapshot_changed` detectors.
+`relay-dsh-plugin-monitors` contributes extensible durable bound Monitor execution to
+the `relayEvents` service. Version `0.3.0` is Monitor Core: it publishes Bundle Type
+and trusted Observer/Detector registries, runs leased checks, and provides generic
+deterministic transition detectors.
 
-The development version also publishes the `relayMonitorBundles` API v1 registry
-and the `relay_list_monitor_bundle_types` Agent tool. This is the first independently
-qualified increment of the Monitor Bundle Platform. Time remains in Core only as a
-temporary compatibility path until the Time extension migration qualifies.
+Time is provided only by the independently installable
+`relay-dsh-plugin-monitor-time` extension. Core contains no clock provider, deadline
+detector, timer proposal factory, `timer.elapsed` Event knowledge, or
+`relay_schedule_timer` tool.
 
 ## Boundary
 
 The plugin owns:
 
 - Monitor proposal validation and baseline observation;
-- observer-provider registry and the built-in clock observer;
+- trusted Observer/Detector provider registry;
 - Bundle Type definition validation, registry lifecycle, authorization-filtered
   discovery, and localized catalog projection;
 - leased due-check scheduling and run-now;
 - deterministic detectors, retry/degraded/failed lifecycle, one-shot completion,
   and explicit recurring rearm;
-- the `relay_schedule_timer` Agent tool;
 - the Session-bound `relay_list_monitor_bundle_types` Agent tool;
 - registration/disposal of one Monitor provider with Events.
 
@@ -43,11 +42,11 @@ The plugin does not own:
 
 ## Observer Contract
 
-An observer provider has a stable lowercase `id` and
-`observe({ monitor, previous, phase, signal })`. Proposals name the provider they
-require. Duplicate providers fail closed. The built-in `clock` provider accepts only
-the `deadline_reached` detector. Unknown providers and detector/provider mismatch fail
-before Wait replacement.
+An Observer/Detector provider has a stable lowercase `id` and
+`observe({ monitor, previous, phase, signal })`. It may own a deterministic
+`detect({ monitor, previous, current })`; providers without one use only Core's
+domain-neutral detectors. Proposals name the provider they require. Duplicate and
+unknown providers fail closed before Wait replacement.
 
 ## Bundle Type Registry Contract
 
@@ -65,8 +64,8 @@ hooks, caller authorization context, unknown origin fields, credential values, o
 secret handles. Authorization failure hides the whole entry; invalid or failed health
 checks report `unavailable`.
 
-This increment exposes discovery only. Type instantiation, custom Bundle artifacts,
-Capability Providers, sandbox execution, and Time/GitHub migration remain gated by
+The current registry increment exposes discovery only. Type instantiation, custom
+Bundle artifacts, Capability Providers, sandbox execution, and GitHub migration remain gated by
 the Relay-level Monitor Bundle Platform acceptance plan and must not be inferred from
 the presence of the catalog.
 
@@ -90,9 +89,9 @@ the presence of the catalog.
 - Rearming a recurring Monitor does not replay a prior trigger identity, even when
   that identity disappears and later reappears in the observation.
 - Generated JavaScript and arbitrary network/browser access are rejected in `0.2.1`.
-- Timers accept either one positive whole-second relative delay or one future RFC3339
-  deadline with an explicit timezone. The resolved UTC deadline and original intent
-  are persisted; ambiguous local times and past deadlines fail before registration.
+- Domain extensions, including Time and GitHub, own their provider-specific
+  observation, detection, proposal factories, Events, capabilities, and convenience
+  Agent tools.
 
 ## Delivery Acceptance
 

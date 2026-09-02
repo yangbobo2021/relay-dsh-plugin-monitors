@@ -1,6 +1,7 @@
 # 面向 DeepSeek Harness 的 Relay Monitors
 
-> **现已支持最新 DSH `0.1.2-alpha.3`。** 插件 `0.2.1` 已在 DSH `0.1.2-alpha.3`、`0.1.2-alpha.2` 与 `0.1.1-rc.2` 上完成兼容验证。[安装插件，立即体验最新版 DSH](https://www.npmjs.com/package/relay-dsh-plugin-monitors) · [兼容性详情](docs/dsh-0.1.2-alpha.3.md)。
+> 已发布的 `0.2.1` 支持 DSH `0.1.2-alpha.3`。当前源码正在开发 Monitor Core
+> `0.3.0`；使用该源码时需要单独安装 Time 扩展。
 
 > **发布通道：** `latest` → `0.2.1`；`next` → `0.2.1-rc.1`。
 
@@ -13,14 +14,15 @@ npx @deepseek-ai/dsh@0.1.2-alpha.3 web
 
 [English](README.md) | 中文
 
-`relay-dsh-plugin-monitors` 为 `relay-dsh-plugin-events` 增加持久化、绑定式 Monitor
-执行。当前版本包含一次性持久计时器、可信观察器 Provider 注册、确定性的状态转换与
-未见项目检测器、租约检查以及生命周期恢复。
+`relay-dsh-plugin-monitors` 为 `relay-dsh-plugin-events` 增加可扩展的持久化、绑定式
+Monitor 执行。Core 包含实时 Bundle Type 目录、可信 Observer/Detector 注册、通用确定性
+转换检测、租约检查和生命周期恢复。Time 与 `relay_schedule_timer` 已迁移到独立的
+`relay-dsh-plugin-monitor-time` 扩展。
 
 当前开发源码还通过公共 `relayMonitorBundles` 服务和与 Session 绑定的
 `relay_list_monitor_bundle_types` Agent 工具提供实时、双语的 Monitor Bundle Type
 目录。目录只列出扩展实际注册的能力，不是静态支持声明。本增量尚未开放 Bundle
-实例化和 Agent 自定义 Bundle 执行。
+实例化和 Agent 自定义 Bundle 执行。只安装 Core 时，Bundle Type 目录按设计为空。
 
 旧的 `internal` npm 通道继续用于集成测试，不包含此次兼容保证。请使用上方最新版
 DSH 命令中精确的 `0.2.1` 版本，不要替换为 `@internal`。

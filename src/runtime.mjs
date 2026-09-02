@@ -1,8 +1,6 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 
-import { detectMonitorEvents } from "./detectors.mjs";
-
 export class MonitorRuntime {
   constructor({
     store,
@@ -13,6 +11,7 @@ export class MonitorRuntime {
   } = {}) {
     assert.ok(store, "MonitorRuntime store is required");
     assert.equal(typeof observer?.observe, "function", "MonitorRuntime observer.observe is required");
+    assert.equal(typeof observer?.detect, "function", "MonitorRuntime observer.detect is required");
     if (relayRuntime != null) {
       assert.equal(typeof relayRuntime.dispatchSession, "function", "relayRuntime.dispatchSession is required");
     }
@@ -40,7 +39,7 @@ export class MonitorRuntime {
         monitor: snapshot.monitor,
         previous: snapshot.monitor.last_observation?.data ?? null,
       });
-      const proposedEvents = detectMonitorEvents({
+      const proposedEvents = await this.observer.detect({
         monitor: snapshot.monitor,
         previous: snapshot.monitor.last_observation?.data ?? null,
         current: observation,
@@ -86,7 +85,7 @@ export class MonitorRuntime {
         phase: "baseline",
       });
       assert.ok(baseline && typeof baseline === "object", "monitor baseline must be an object");
-      detectMonitorEvents({ monitor, previous: null, current: baseline });
+      await this.observer.detect({ monitor, previous: null, current: baseline });
       prepared.push({
         ...proposal,
         baseline_observation: baseline,

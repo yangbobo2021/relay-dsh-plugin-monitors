@@ -10,14 +10,21 @@ import {
 } from "../src/observer-registry.mjs";
 import { validateObservationBoundary } from "../src/controller.mjs";
 
-test("observer registry rejects duplicates and removes only its own provider", async () => {
+test("observer registry rejects duplicates and delegates observation and detection to its provider", async () => {
   const registry = new RelayMonitorObserverRegistry(new Context());
-  const provider = { id: "fixture", async observe() { return { state: "ok" }; } };
+  const provider = {
+    id: "fixture",
+    async observe() { return { state: "ok" }; },
+    detect({ current }) { return [{ type: "fixture.done", key: "done", data: current }]; },
+  };
   const release = registry.register(provider);
   assert.throws(() => registry.register(provider), /already registered/);
   assert.deepEqual(await registry.observe({
     monitor: { monitor_id: "m", observer: { provider: "fixture" }, detector: { kind: "field_transition" } },
   }), { state: "ok" });
+  assert.deepEqual(await registry.detect({
+    monitor: { observer: { provider: "fixture" } }, previous: null, current: { state: "ok" },
+  }), [{ type: "fixture.done", key: "done", data: { state: "ok" } }]);
   release();
   await assert.rejects(registry.observe({
     monitor: { monitor_id: "m", observer: { provider: "fixture" }, detector: { kind: "field_transition" } },
@@ -32,9 +39,13 @@ test("generated code and privileged capabilities fail before baseline", () => {
   ]) assert.throws(() => validateArtifactBoundary(monitor), /not allowed/);
 });
 
-test("controller prepares baseline through a trusted observer", async () => {
+test("controller prepares baseline through a trusted observer/detector provider", async () => {
   const registry = new RelayMonitorObserverRegistry(new Context());
-  registry.register({ id: "fixture", async observe() { return { id: "PO-1", status: "pending" }; } });
+  registry.register({
+    id: "fixture",
+    async observe() { return { id: "PO-1", status: "pending" }; },
+    detect() { return []; },
+  });
   const controller = new RelayMonitorsController({ events: fakeEvents(), observers: registry, pollIntervalMs: 60_000 });
   try {
     const prepared = await controller.provider.prepare({
@@ -57,7 +68,7 @@ test("controller shutdown aborts an in-flight observation and rejects new checks
   const began = new Promise(resolve => { started = resolve; });
   const blocked = new Promise(resolve => { unblock = resolve; });
   const registry = new RelayMonitorObserverRegistry(new Context());
-  registry.register({ id: "blocked", async observe() { started(); return blocked; } });
+  registry.register({ id: "blocked", async observe() { started(); return blocked; }, detect() { return []; } });
   const events = fakeEvents({
     beginMonitorCheck() {
       return {
