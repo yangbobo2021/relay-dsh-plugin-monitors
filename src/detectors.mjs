@@ -12,7 +12,29 @@ export function detectMonitorEvents({ monitor, previous, current }) {
   if (detector.kind === "deadline_reached") {
     return detectDeadlineReached(detector, previous, current);
   }
+  if (detector.kind === "snapshot_changed") {
+    return detectSnapshotChanged(detector, previous, current);
+  }
   throw new Error(`unsupported Monitor detector ${detector.kind}`);
+}
+
+function detectSnapshotChanged(detector, previous, current) {
+  assert.equal(typeof detector.fingerprint_field, "string", "snapshot_changed requires fingerprint_field");
+  assert.equal(typeof detector.identity_field, "string", "snapshot_changed requires identity_field");
+  assert.equal(typeof detector.event_type, "string", "snapshot_changed requires event_type");
+  const fingerprint = current[detector.fingerprint_field];
+  const identity = current[detector.identity_field];
+  assert.equal(typeof fingerprint, "string", "snapshot_changed current fingerprint is required");
+  assert.equal(typeof identity, "string", "snapshot_changed current identity is required");
+  if (previous == null || previous[detector.fingerprint_field] === fingerprint) return [];
+  const correlationKey = detector.correlation_key_field == null ? null : current[detector.correlation_key_field];
+  if (detector.correlation_key_field != null) assert.equal(typeof correlationKey, "string", "snapshot_changed correlation key is required");
+  return [{
+    type: detector.event_type,
+    key: identity,
+    data: current,
+    ...(correlationKey ? { correlation_key: correlationKey } : {}),
+  }];
 }
 
 function detectFieldTransition(detector, previous, current) {
