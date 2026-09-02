@@ -41,10 +41,12 @@ test("MB04-001: sandbox has no ambient host, I/O, clock, randomness, timer, or m
 });
 
 test("MB04-005/007: infinite CPU, memory pressure, invalid exports, and oversized output fail with stable redacted classes", async () => {
-  const sandbox = new MonitorBundleSandbox({ wallClockMs: 5, memoryBytes: 1024 * 1024, outputBytes: 64 });
-  await assert.rejects(sandbox.observe(`globalThis.monitor={observe(){while(true){}},detect(){return[]}}`, {}), error => error?.errorClass === "resource_limit");
-  await assert.rejects(sandbox.observe(`globalThis.monitor={observe(){return "x".repeat(2000000)},detect(){return[]}}`, {}), error => error?.errorClass === "resource_limit" || error?.errorClass === "output_limit");
-  await assert.rejects(sandbox.validate(`globalThis.monitor={observe(){return {}}}`), error => error?.errorClass === "invalid_module");
-  await assert.rejects(sandbox.detect(`globalThis.monitor={observe(){return {}},detect(){return {}}}`, null, {}), error => error?.errorClass === "invalid_output");
-  await assert.rejects(sandbox.observe(`globalThis.monitor={observe(){return "${"x".repeat(65)}"},detect(){return[]}}`, {}), error => error?.errorClass === "output_limit");
+  const cpuSandbox = new MonitorBundleSandbox({ wallClockMs: 5 });
+  await assert.rejects(cpuSandbox.observe(`globalThis.monitor={observe(){while(true){}},detect(){return[]}}`, {}), error => error?.errorClass === "resource_limit");
+  const memorySandbox = new MonitorBundleSandbox({ wallClockMs: 100, memoryBytes: 1024 * 1024 });
+  await assert.rejects(memorySandbox.observe(`globalThis.monitor={observe(){return "x".repeat(2000000)},detect(){return[]}}`, {}), error => error?.errorClass === "resource_limit");
+  const contractSandbox = new MonitorBundleSandbox({ outputBytes: 64 });
+  await assert.rejects(contractSandbox.validate(`globalThis.monitor={observe(){return {}}}`), error => error?.errorClass === "invalid_module");
+  await assert.rejects(contractSandbox.detect(`globalThis.monitor={observe(){return {}},detect(){return {}}}`, null, {}), error => error?.errorClass === "invalid_output");
+  await assert.rejects(contractSandbox.observe(`globalThis.monitor={observe(){return "${"x".repeat(65)}"},detect(){return[]}}`, {}), error => error?.errorClass === "output_limit");
 });
