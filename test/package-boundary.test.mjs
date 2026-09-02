@@ -10,4 +10,6 @@ test("Monitors has only a public Events peer and no Event persistence implementa
   assert.match(host, /ctx\.inject\(\["relayEvents"\]/);
   assert.doesNotMatch(host, /SQLite|RelayStore|codex|claude/);
   for (let id = 1; id <= 20; id += 1) assert.match(acceptance, new RegExp(`MON-${String(id).padStart(3, "0")}`));
+  for (let id = 1; id <= 10; id += 1) assert.match(acceptance, new RegExp(`MB01-${String(id).padStart(3, "0")}`));
+  assert.match(acceptance, /MB08-001/u);
 });

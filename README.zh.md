@@ -17,6 +17,11 @@ npx @deepseek-ai/dsh@0.1.2-alpha.3 web
 执行。当前版本包含一次性持久计时器、可信观察器 Provider 注册、确定性的状态转换与
 未见项目检测器、租约检查以及生命周期恢复。
 
+当前开发源码还通过公共 `relayMonitorBundles` 服务和与 Session 绑定的
+`relay_list_monitor_bundle_types` Agent 工具提供实时、双语的 Monitor Bundle Type
+目录。目录只列出扩展实际注册的能力，不是静态支持声明。本增量尚未开放 Bundle
+实例化和 Agent 自定义 Bundle 执行。
+
 旧的 `internal` npm 通道继续用于集成测试，不包含此次兼容保证。请使用上方最新版
 DSH 命令中精确的 `0.2.1` 版本，不要替换为 `@internal`。
 

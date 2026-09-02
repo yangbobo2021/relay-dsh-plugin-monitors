@@ -41,3 +41,23 @@ delivery harness.
 - The packed official DSH management run exercised keyboard pause/resume/stop,
   focus trap and return, overdue/current timestamps, terminal history, bilingual
   copy, and browser console/network cleanliness.
+
+## Review 5 — Bundle Type registry and live catalog
+
+- Wrote the registry and Agent-tool contract tests before the implementation. The
+  first run failed because the module and list tool did not exist, proving discovery.
+- The next run reached the official DSH tool compiler and failed because the catalog
+  output item schema omitted an explicit `additionalProperties` policy. Correcting
+  the real tool schema, rather than bypassing the compiler, made the contract pass.
+- A seeded-secret mutation then demonstrated that cloning an extension's entire
+  origin object leaked an unknown `credential` field. The public projection now
+  copies only `kind`, `plugin_id`, and `plugin_version`; the test fails if broad
+  origin cloning returns.
+- Coverage includes empty Core, complete English/Chinese metadata, deterministic
+  order, all four health states, invalid-health fail-closed behavior, invalid
+  definitions, duplicate atomicity, stale/idempotent disposal, authorization hiding,
+  immutable caller input, concurrent unload snapshots, and Session-bound Agent input.
+- `npm run verify` must execute all discovered tests, type checks, the production
+  tsdown bundle, and `npm pack --dry-run`. No skip or todo is accepted. This increment
+  does not claim instantiation, UI, official-DSH hot-plugin, or sandbox acceptance;
+  those remain explicit later release gates.

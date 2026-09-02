@@ -1,11 +1,13 @@
 import { installMonitorAgentBridge } from "./agent-bridge.js";
 import { RelayMonitorsController } from "./src/controller.mjs";
+import { RelayMonitorBundleRegistry } from "./src/bundle-registry.mjs";
 import { RelayMonitorObserverRegistry } from "./src/observer-registry.mjs";
 
 export const name = "relay-dsh-plugin-monitors";
 export const inject = ["agents", "tools"];
 
 export function apply(ctx, config = {}) {
+  const bundles = new RelayMonitorBundleRegistry(ctx);
   const observers = new RelayMonitorObserverRegistry(ctx);
   const fiber = ctx.inject(["relayEvents"], scope => {
     const controller = new RelayMonitorsController({
@@ -29,6 +31,7 @@ export function apply(ctx, config = {}) {
           await scope.relayEvents.registerWaits(proposal);
           return proposal.timer;
         },
+        listBundleTypes: input => bundles.listBundleTypes(input),
       }), "relay monitor tools");
     };
     scope.effect(() => scope.on("agent/created", ({ agent }) => attach(agent)), "relay monitor agent bridge");
@@ -37,4 +40,5 @@ export function apply(ctx, config = {}) {
   ctx.effect(() => () => fiber.dispose(), "relay monitor injection");
 }
 
+export { RelayMonitorBundleRegistry } from "./src/bundle-registry.mjs";
 export { RelayMonitorObserverRegistry } from "./src/observer-registry.mjs";

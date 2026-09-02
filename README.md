@@ -18,6 +18,13 @@ English | [中文](README.zh.md)
 trusted observer-provider registration, deterministic transition/unseen-item
 detectors, leased checks, and lifecycle recovery.
 
+The development source additionally exposes a live, localized Monitor Bundle Type
+catalog through the public `relayMonitorBundles` service and the Session-bound
+`relay_list_monitor_bundle_types` Agent tool. The catalog lists capabilities that
+extensions have actually registered; it is not a static support claim. Bundle
+instantiation and Agent-authored Bundle execution are not yet exposed by this
+increment.
+
 The older `internal` npm channel remains available for integration testing and
 does not carry this compatibility guarantee. Use the exact `0.2.1`
 versions in the latest-DSH command above; do not substitute `@internal`.

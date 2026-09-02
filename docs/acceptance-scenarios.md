@@ -27,3 +27,22 @@ Official DSH reference: `dd6322d604e00eec1ba5e0c8541159906a21094a`
 | MON-021 | Observation boundary | Exact byte/depth/node limits pass; one-over, cycles, and non-JSON values fail before detector/commit with stable redacted errors. | controller unit + composition |
 | MON-022 | Proposal budgets | Cadence, jitter, threshold ordering, and backoff boundaries reject atomically at persistence as well as proposal validation. | SQLite fault matrix |
 | MON-023 | Management lifecycle UI | Pause, resume, run-now, cadence, stop, stale versions, terminal history, and keyboard confirmation remain inspectable in English and Chinese. | official DSH browser + service contract |
+
+## Monitor Bundle Registry Increment
+
+These rows qualify discovery only; they do not qualify Bundle instantiation or custom
+code execution.
+
+| ID | Scenario | Required result | Evidence |
+| --- | --- | --- | --- |
+| MB01-001 | Empty Core catalog | Core returns an empty creation catalog before extensions register. | registry unit |
+| MB01-002 | Localized registration | A complete type is visible immediately in English and Chinese through the public service and Agent tool. | registry + tool contract |
+| MB01-003 | Deterministic listing | Multiple types and versions have deterministic order and deeply frozen projections. | registry unit |
+| MB01-004 | Duplicate identity | A duplicate type/version fails without replacing the first registration. | registry unit |
+| MB01-005 | Invalid definition matrix | Invalid API, ID, version, Events, schema, capability, lifecycle, locale, and factory fail before visibility. | table-driven unit |
+| MB01-006 | Owner-safe disposal | Disposal is idempotent and a stale disposer cannot remove a replacement. | lifecycle unit |
+| MB01-007 | Concurrent unload | New lists reflect unload immediately; an in-flight list remains one complete snapshot. | lifecycle unit |
+| MB01-008 | Authorization filtering | A denied caller sees no entry or hidden metadata. | security unit |
+| MB01-009 | Configuration state | Four supported states survive; invalid or throwing health checks fail closed as unavailable. | health unit |
+| MB01-010 | Secret-safe projection | Executable hooks, unknown origin fields, credential values, and secret handles are absent. | seeded-secret scan |
+| MB08-001 | Session-bound list tool | Tool accepts no Session or credential input and derives ownership from the root Agent installation context. | DSH tool compiler contract |
