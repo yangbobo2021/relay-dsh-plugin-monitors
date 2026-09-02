@@ -140,6 +140,10 @@ delivery harness.
   builds the production QuickJS-containing Host bundle, and inspects the dry-run npm
   archive. The root integration process discovers 467/467 tests, including real process restart and
   expiry flows.
+- The first clean CI push failed before tests because the package-local lockfile did
+  not contain QuickJS; a hoisted root installation had hidden the defect locally.
+  Regenerating the child lockfile and running `npm ci --ignore-scripts` before
+  `npm run verify` now proves the independently checked-out package is installable.
 - The external root acceptance report records the final official-DSH package SHA-256;
   keeping it outside this tarball avoids a self-referential hash. No workspace source
   or private artifact is used by that browser run.
