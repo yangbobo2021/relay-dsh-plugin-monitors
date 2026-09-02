@@ -8,6 +8,7 @@ import {
   RelayMonitorObserverRegistry,
   validateArtifactBoundary,
 } from "../src/observer-registry.mjs";
+import { validateObservationBoundary } from "../src/controller.mjs";
 
 test("observer registry rejects duplicates and removes only its own provider", async () => {
   const registry = new RelayMonitorObserverRegistry(new Context());
@@ -104,4 +105,17 @@ test("observation deadlines bound an uncooperative provider and propagate its ab
     await assert.rejects(controller.observe({}), error => error.errorClass === "observation_timeout");
     assert.equal(signal.aborted, true);
   } finally { await controller.stop(); }
+});
+
+test("EP11-004/007: observation size, depth, field count, cycles, and boundary value are enforced before detector commit", () => {
+  const boundary = { value: "x".repeat(100) };
+  assert.equal(validateObservationBoundary(boundary, { maxBytes: 112 }), boundary);
+  assert.throws(() => validateObservationBoundary(boundary, { maxBytes: 111 }), error => error?.errorClass === "observation_too_large");
+  let deep = {};
+  for (let index = 0; index < 34; index += 1) deep = { child: deep };
+  assert.throws(() => validateObservationBoundary(deep), /depth limit/u);
+  assert.throws(() => validateObservationBoundary(Object.fromEntries(Array.from({ length: 10_001 }, (_, index) => [`k${index}`, index]))), /field limit/u);
+  const cyclic = {};
+  cyclic.self = cyclic;
+  assert.throws(() => validateObservationBoundary(cyclic), /cycle/u);
 });

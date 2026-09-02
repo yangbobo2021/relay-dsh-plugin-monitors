@@ -1,13 +1,13 @@
 # Relay DSH Monitors Plugin Specification
 
-Status: Accepted for `0.1.0`
+Status: Accepted for `0.2.1` plus Event Productization contracts
 
 ## Purpose
 
 `relay-dsh-plugin-monitors` contributes durable bound Monitor execution to the
-`relayEvents` service. Version `0.1.0` delivers the built-in one-shot timer and a
-trusted observer-provider contract for deterministic `field_transition` and
-`unseen_items` detectors.
+`relayEvents` service. Version `0.2.1` delivers the built-in one-shot timer and a
+  trusted observer-provider contract for deterministic `field_transition`,
+  `unseen_items`, and `snapshot_changed` detectors.
 
 ## Boundary
 
@@ -52,9 +52,18 @@ before Wait replacement.
   tools, and leaves recoverable durable state.
 - Observations receive an abort signal and have a maximum 30-second deadline.
   Unload releases the check lease without consuming Waits or the failure budget.
+- Every baseline and check observation must be JSON-serializable and is bounded to
+  256 KiB, depth 32, and 10,000 nodes. Cycles and one-over-limit results fail with
+  `observation_too_large` before detector execution or durable commit.
+- Cadence is 1–86,400 seconds; jitter cannot exceed the cadence or 3,600 seconds;
+  failure thresholds are ordered safe integers up to 100; backoff has at most 20
+  entries, each 1–86,400 seconds. Invalid proposals change no Wait or Monitor row.
 - Rearming a recurring Monitor does not replay a prior trigger identity, even when
   that identity disappears and later reappears in the observation.
-- Generated JavaScript and arbitrary network/browser access are rejected in `0.1.0`.
+- Generated JavaScript and arbitrary network/browser access are rejected in `0.2.1`.
+- Timers accept either one positive whole-second relative delay or one future RFC3339
+  deadline with an explicit timezone. The resolved UTC deadline and original intent
+  are persisted; ambiguous local times and past deadlines fail before registration.
 
 ## Delivery Acceptance
 

@@ -6,7 +6,9 @@ export function installMonitorAgentBridge(ctx, { sessionId, scheduleTimer }) {
     description: "Continue this conversation after a durable positive delay.",
     parameters: {
       task_summary: { type: "string", required: true },
-      after_seconds: { type: "integer", required: true },
+      after_seconds: { type: "integer" },
+      deadline: { type: "string" },
+      allow_immediate: { type: "boolean" },
       resume_prompt: { type: "string", required: true },
     },
     output: {
@@ -27,6 +29,8 @@ export function installMonitorAgentBridge(ctx, { sessionId, scheduleTimer }) {
         sessionId,
         taskSummary: args.task_summary,
         afterSeconds: args.after_seconds,
+        deadline: args.deadline,
+        allowImmediate: args.allow_immediate ?? false,
         resumePrompt: args.resume_prompt,
       });
       return { scheduled: true, sessionId, timerId: timer.timer_id, dueAt: timer.deadline };

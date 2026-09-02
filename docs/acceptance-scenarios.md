@@ -1,6 +1,6 @@
 # Monitors Delivery Acceptance Scenarios
 
-Official DSH reference: `b150a551b8d465e31e418e1b2eaf5e79bbb7d28e`
+Official DSH reference: `dd6322d604e00eec1ba5e0c8541159906a21094a`
 
 | ID | Scenario | Required result | Evidence |
 | --- | --- | --- | --- |
@@ -22,4 +22,8 @@ Official DSH reference: `b150a551b8d465e31e418e1b2eaf5e79bbb7d28e`
 | MON-016 | Generated-code rejection | Artifact kinds requesting generated JS, shell, browser, or unrestricted network are rejected. | security unit |
 | MON-017 | Package boundary | Tarball imports only public Events contracts, contains no Relay parent source, and installs cleanly. | pack/static |
 | MON-018 | Events composition | Events+Monitors packed tarballs boot and the timer path works on official DSH. | official DSH |
-
+| MON-019 | Absolute deadline | Explicit-zone RFC3339 input preserves original intent, stores one UTC deadline, and rejects timezone-less, invalid, past, or mixed relative/absolute input. | unit + integration |
+| MON-020 | Snapshot change | A stable fingerprint produces no Event; one new fingerprint emits one deterministic bound Event. | detector + composition |
+| MON-021 | Observation boundary | Exact byte/depth/node limits pass; one-over, cycles, and non-JSON values fail before detector/commit with stable redacted errors. | controller unit + composition |
+| MON-022 | Proposal budgets | Cadence, jitter, threshold ordering, and backoff boundaries reject atomically at persistence as well as proposal validation. | SQLite fault matrix |
+| MON-023 | Management lifecycle UI | Pause, resume, run-now, cadence, stop, stale versions, terminal history, and keyboard confirmation remain inspectable in English and Chinese. | official DSH browser + service contract |

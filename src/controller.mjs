@@ -75,10 +75,13 @@ export class RelayMonitorsController {
       signal.addEventListener("abort", onAbort, { once: true });
       if (signal.aborted) onAbort();
     });
-    try { return await Promise.race([cancelled, Promise.resolve().then(() => {
+    try {
+      const observation = await Promise.race([cancelled, Promise.resolve().then(() => {
       signal.throwIfAborted();
       return this.observers.observe({ ...input, signal });
-    })]); }
+      })]);
+      return validateObservationBoundary(observation);
+    }
     finally { clearTimeout(timer); signal.removeEventListener("abort", onAbort); }
   }
 
@@ -94,6 +97,37 @@ export class RelayMonitorsController {
     );
     return task;
   }
+}
+
+export function validateObservationBoundary(value, { maxBytes = 262_144, maxDepth = 32, maxNodes = 10_000 } = {}) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw observationError("Monitor observation must be an object");
+  const seen = new Set();
+  const stack = [{ value, depth: 0 }];
+  let nodes = 0;
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (current.depth > maxDepth) throw observationError("Monitor observation exceeded the depth limit");
+    if (current.value && typeof current.value === "object") {
+      if (seen.has(current.value)) throw observationError("Monitor observation contains a cycle");
+      seen.add(current.value);
+      for (const child of Array.isArray(current.value) ? current.value : Object.values(current.value)) {
+        nodes += 1;
+        if (nodes > maxNodes) throw observationError("Monitor observation exceeded the field limit");
+        if (child && typeof child === "object") stack.push({ value: child, depth: current.depth + 1 });
+      }
+    }
+  }
+  let encoded;
+  try { encoded = JSON.stringify(value); }
+  catch { throw observationError("Monitor observation is not JSON serializable"); }
+  if (encoded === undefined || Buffer.byteLength(encoded, "utf8") > maxBytes) {
+    throw observationError("Monitor observation exceeded the size limit");
+  }
+  return value;
+}
+
+function observationError(message) {
+  return Object.assign(new Error(message), { errorClass: "observation_too_large" });
 }
 
 function monitorStore(events) {

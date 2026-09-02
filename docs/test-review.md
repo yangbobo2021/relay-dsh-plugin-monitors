@@ -29,3 +29,15 @@ delivery harness.
 - Added durable composition tests for baseline rollback, failure escalation,
   concurrent leases, recurring rearm and overdue restart.
 - Corrected distribution instructions to install built tarballs.
+
+## Review 4 — resource budgets and publishable management
+
+- Exact 256 KiB/depth-32/node-10,000 observation boundaries, plus cyclic and
+  non-serializable observations, exercise the production controller before detector
+  or persistence. The one-over cases remain stable `observation_too_large` failures.
+- Events storage independently enforces cadence, jitter, failure-threshold, and
+  backoff budgets transactionally so a forged provider cannot bypass proposal
+  validation. Monitors verification discovered 13/13 tests with zero skip/todo.
+- The packed official DSH management run exercised keyboard pause/resume/stop,
+  focus trap and return, overdue/current timestamps, terminal history, bilingual
+  copy, and browser console/network cleanliness.
