@@ -94,4 +94,52 @@ delivery harness.
   ancestor cycle, proving the correction did not disable cycle protection.
 - Factory throw/timeout and DSH tool compilation run with zero skip/todo. Artifact
   content hashing, concurrent create convergence, plugin migration, and provider-loss
-  recovery remain later release gates and are not claimed here.
+  recovery are qualified by the following increments.
+
+## Review 8 — custom Bundle, sandbox, and provider authority
+
+- QuickJS WASM tests execute actual untrusted source and prove the absence of host,
+  environment, I/O, module, clock, random, timer, and nested-WASM authority. Infinite
+  CPU, memory pressure, invalid exports, and oversized output fail with stable classes.
+- Persistent receipt tests restart the custom manager, re-hash source at use time,
+  reject another Session, and prove concurrent install retries invoke Events once.
+- Real canonical project directories cover child reuse plus parent, sibling,
+  prefix-collision, and symlink escape refusal. Catalog projections are seeded with
+  grant arguments and prove they never expose handles or working directories.
+- Provider tests cover exact argument subsets, authorization, duplicate ownership,
+  mutate refusal, schema failure, timeout, cancellation, oversized output, unload,
+  and rejection of a result arriving after disposal.
+
+## Review 9 — immutable update, rollback, expiry, and UI
+
+- A Cordis+SQLite lifecycle test uses the actual Agent tools to install, update,
+  fail a replacement baseline, rollback, unload/reload the provider, and finally emit
+  one Event into the same Session. The failed update leaves version, active version,
+  and history count unchanged.
+- Version identity initially used only the source SHA. Review found that the same
+  module with different config would collide; version hashing now includes source,
+  normalized manifest/config, authorization boundary, and replacement lineage.
+- Expiry cleanup uses a real private filesystem. It deletes expired receipts, keeps
+  source while a live/shared reference exists, and collects the orphan on a later
+  pass. The Events expiry test separately proves terminal evidence remains and no
+  Event is fabricated.
+- Packed official DSH browser acceptance found three defects that static tests did
+  not: a 3.68:1 dark-theme remediation color, ambiguous pagination selectors after
+  adding the second pager, and English Bundle data surviving a Chinese locale switch.
+  Each defect first failed the release gate; the restored run passed the entire
+  English/Chinese, light/dark, pagination, keyboard, responsive, fault, redaction,
+  console, and network-cleanliness matrix.
+
+## Review 10 — migration, packaging, and final discovery
+
+- Unit aliases alone were rejected as insufficient migration evidence. Root
+  composition now stores legacy Time and GitHub Monitor shapes in a real SQLite file,
+  closes the services, reopens that file, and proves exact Monitor/Wait/version,
+  baseline, continuation, Session, and stable Event identity before delivery.
+- The final Monitors command runs typecheck, discovers 50/50 tests with zero skip/todo,
+  builds the production QuickJS-containing Host bundle, and inspects the dry-run npm
+  archive. The root integration process discovers 467/467 tests, including real process restart and
+  expiry flows.
+- The external root acceptance report records the final official-DSH package SHA-256;
+  keeping it outside this tarball avoids a self-referential hash. No workspace source
+  or private artifact is used by that browser run.

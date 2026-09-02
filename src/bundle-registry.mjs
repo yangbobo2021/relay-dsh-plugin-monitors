@@ -12,6 +12,7 @@ const LOCALIZED_FIELDS = ["name", "description", "permissions", "remediation"];
 export class RelayMonitorBundleRegistry extends Service {
   apiVersion = 1;
   #registrations = new Map();
+  #catalogProviders = new Map();
   #factoryTimeoutMs;
 
   constructor(ctx, { factoryTimeoutMs = 30_000 } = {}) {
@@ -31,6 +32,20 @@ export class RelayMonitorBundleRegistry extends Service {
       if (!active) return;
       active = false;
       if (this.#registrations.get(key) === registration) this.#registrations.delete(key);
+    };
+  };
+
+  registerCatalogProvider = provider => {
+    if (!provider || !STABLE_ID.test(provider.id ?? "") || typeof provider.listBundleTypes !== "function") {
+      throw new TypeError("monitor Bundle catalog provider requires a stable id and listBundleTypes()");
+    }
+    if (this.#catalogProviders.has(provider.id)) throw new Error(`monitor Bundle catalog provider ${provider.id} is already registered`);
+    this.#catalogProviders.set(provider.id, provider);
+    let active = true;
+    return () => {
+      if (!active) return;
+      active = false;
+      if (this.#catalogProviders.get(provider.id) === provider) this.#catalogProviders.delete(provider.id);
     };
   };
 
@@ -69,6 +84,40 @@ export class RelayMonitorBundleRegistry extends Service {
     }
   };
 
+  migrateBundleArtifact = async ({ typeId, fromVersion, toVersion, artifact, authorization = {} } = {}) => {
+    const registration = this.#registrations.get(registrationKey({ type_id: typeId, bundle_version: toVersion }));
+    if (!registration) throw new Error(`monitor Bundle Type ${typeId}@${toVersion} is not registered`);
+    if (!Number.isSafeInteger(fromVersion) || fromVersion < 1 || fromVersion >= toVersion) {
+      throw new TypeError("Monitor Bundle migration source version is invalid");
+    }
+    if (!registration.supported_prior_versions.includes(fromVersion) || typeof registration.migrate !== "function") {
+      return deepFreeze({ compatible: false, reason: "unsupported_prior_version", fromVersion, toVersion });
+    }
+    if (!await isAuthorized(registration, authorization)) throw new Error(`monitor Bundle Type ${typeId}@${toVersion} is not authorized`);
+    validateBoundedJson(artifact, "monitor Bundle migration artifact", { maxBytes: 1_048_576, maxDepth: 32, maxNodes: 20_000 });
+    const abort = new AbortController();
+    const timer = setTimeout(() => abort.abort(new Error("monitor Bundle Type migration timed out")), this.#factoryTimeoutMs);
+    try {
+      const timeout = new Promise((_, reject) => abort.signal.addEventListener("abort", () => reject(abort.signal.reason), { once: true }));
+      const migrated = await Promise.race([
+        Promise.resolve().then(() => registration.migrate(deepFreeze(structuredClone({ fromVersion, artifact, authorization })), abort.signal)),
+        timeout,
+      ]);
+      if (migrated?.compatible === false) {
+        const reason = typeof migrated.reason === "string" && migrated.reason.length <= 512 ? migrated.reason : "incompatible";
+        return deepFreeze({ compatible: false, reason, fromVersion, toVersion });
+      }
+      const nextArtifact = migrated?.artifact ?? migrated;
+      validateBoundedJson(nextArtifact, "monitor Bundle migration result", { maxBytes: 1_048_576, maxDepth: 32, maxNodes: 20_000 });
+      if (nextArtifact?.type_id !== typeId || nextArtifact?.bundle_version !== toVersion) {
+        throw new TypeError("monitor Bundle migration returned the wrong type or version");
+      }
+      return deepFreeze({ compatible: true, fromVersion, toVersion, artifact: structuredClone(nextArtifact) });
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+
   listBundleTypes = async ({ locale = "en-US", authorization = Object.freeze({}) } = {}) => {
     const selectedLocale = locale === "zh-CN" ? "zh-CN" : "en-US";
     const visible = [];
@@ -77,9 +126,66 @@ export class RelayMonitorBundleRegistry extends Service {
       const status = await resolveStatus(registration, authorization);
       visible.push(toCatalogEntry(registration, selectedLocale, status));
     }
-    visible.sort((left, right) => left.type_id.localeCompare(right.type_id, "en") || left.bundle_version - right.bundle_version);
+    for (const provider of this.#catalogProviders.values()) {
+      const entries = await provider.listBundleTypes({ locale: selectedLocale, authorization });
+      if (!Array.isArray(entries) || entries.length > 10_000) throw new TypeError(`monitor Bundle catalog provider ${provider.id} returned an invalid list`);
+      for (const entry of entries) visible.push(normalizeExternalCatalogEntry(entry, selectedLocale));
+    }
+    visible.sort((left, right) => left.type_id.localeCompare(right.type_id, "en")
+      || left.bundle_version - right.bundle_version
+      || (left.artifact_hash ?? "").localeCompare(right.artifact_hash ?? "", "en"));
     return Object.freeze(visible);
   };
+
+  listBundleTypePage = async ({ cursor = null, limit = 50, ...options } = {}) => {
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) throw new TypeError("Monitor Bundle catalog limit must be from 1 to 100");
+    const after = cursor == null ? null : decodeCatalogCursor(cursor);
+    const all = await this.listBundleTypes(options);
+    const remaining = after == null ? all : all.filter(entry => catalogKey(entry) > after);
+    const bundleTypes = remaining.slice(0, limit);
+    const nextCursor = remaining.length > limit && bundleTypes.length > 0
+      ? encodeCatalogCursor(catalogKey(bundleTypes.at(-1)))
+      : null;
+    return Object.freeze({ bundleTypes: Object.freeze(bundleTypes), nextCursor, total: all.length });
+  };
+}
+
+function catalogKey(entry) {
+  return `${entry.type_id}\u0000${String(entry.bundle_version).padStart(12, "0")}\u0000${entry.artifact_hash ?? ""}`;
+}
+
+function encodeCatalogCursor(key) {
+  return Buffer.from(JSON.stringify({ v: 1, after: key }), "utf8").toString("base64url");
+}
+
+function decodeCatalogCursor(cursor) {
+  try {
+    const value = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8"));
+    if (value?.v !== 1 || typeof value.after !== "string" || value.after.length > 1_000) throw new Error();
+    return value.after;
+  } catch {
+    throw new TypeError("Monitor Bundle catalog cursor is invalid");
+  }
+}
+
+function normalizeExternalCatalogEntry(entry, locale) {
+  if (!entry || typeof entry !== "object" || Array.isArray(entry) || entry.api_version !== 1 || !TYPE_ID.test(entry.type_id ?? "")) {
+    throw new TypeError("monitor Bundle catalog provider returned an invalid entry");
+  }
+  if (!Number.isSafeInteger(entry.bundle_version) || entry.bundle_version < 1 || !STATUSES.has(entry.status) || entry.locale !== locale) {
+    throw new TypeError("monitor Bundle catalog provider returned invalid version, status, or locale");
+  }
+  validateStringArray(entry.event_types, "Event", EVENT_TYPE);
+  validateParameterSchema(entry.parameter_schema);
+  assertValidParameterSchema(entry.parameter_schema);
+  validateStringArray(entry.capabilities, "capability", STABLE_ID, { allowEmpty: true });
+  validateStringArray(entry.lifecycle, "lifecycle", null, { allowed: LIFECYCLES });
+  if (!entry.origin || entry.origin.kind !== "agent" || !["session", "project"].includes(entry.origin.scope)) throw new TypeError("monitor Bundle catalog provider returned an invalid origin");
+  for (const field of ["name", "description", "permissions", "remediation"]) {
+    if (typeof entry[field] !== "string" || !entry[field].trim() || entry[field].length > 2_000) throw new TypeError(`monitor Bundle catalog entry ${field} is invalid`);
+  }
+  validateBoundedJson(entry, "monitor Bundle catalog entry", { maxBytes: 65_536, maxDepth: 16, maxNodes: 2_000 });
+  return deepFreeze(structuredClone(entry));
 }
 
 export function normalizeBundleType(definition) {
@@ -97,6 +203,18 @@ export function normalizeBundleType(definition) {
   assertValidParameterSchema(definition.parameter_schema);
   validateStringArray(definition.capabilities, "capability", STABLE_ID, { allowEmpty: true });
   validateStringArray(definition.lifecycle, "lifecycle", null, { allowed: LIFECYCLES });
+  const supportedPriorVersions = definition.supported_prior_versions ?? [];
+  if (!Array.isArray(supportedPriorVersions) || supportedPriorVersions.length > 32
+    || new Set(supportedPriorVersions).size !== supportedPriorVersions.length
+    || supportedPriorVersions.some(version => !Number.isSafeInteger(version) || version < 1 || version >= definition.bundle_version)) {
+    throw new TypeError("monitor Bundle Type supported prior versions are invalid");
+  }
+  if (supportedPriorVersions.length > 0 && typeof definition.migrate !== "function") {
+    throw new TypeError("monitor Bundle Type requires migrate() for supported prior versions");
+  }
+  if (definition.migrate !== undefined && typeof definition.migrate !== "function") {
+    throw new TypeError("monitor Bundle Type migrate must be a function");
+  }
   validateLocales(definition.locales);
   if (typeof definition.create !== "function") throw new TypeError("monitor Bundle Type requires a factory create()");
   if (definition.authorize !== undefined && typeof definition.authorize !== "function") {
@@ -119,6 +237,7 @@ export function normalizeBundleType(definition) {
     parameter_schema: definition.parameter_schema,
     capabilities: definition.capabilities,
     lifecycle: definition.lifecycle,
+    supported_prior_versions: [...supportedPriorVersions].sort((left, right) => left - right),
     locales: definition.locales,
   }));
   return Object.freeze({
@@ -126,11 +245,13 @@ export function normalizeBundleType(definition) {
     definition: Object.freeze({
       ...publicData,
       create: definition.create,
+      migrate: definition.migrate,
       authorize: definition.authorize,
       availability: definition.availability,
     }),
     authorize: definition.authorize,
     availability: definition.availability,
+    migrate: definition.migrate,
   });
 }
 
@@ -241,6 +362,7 @@ function toCatalogEntry(registration, locale, status) {
     parameter_schema: structuredClone(registration.parameter_schema),
     capabilities: [...registration.capabilities],
     lifecycle: [...registration.lifecycle],
+    supported_prior_versions: [...registration.supported_prior_versions],
     status,
     locale,
     name: localized.name,

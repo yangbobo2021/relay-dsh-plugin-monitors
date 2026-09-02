@@ -21,7 +21,11 @@ The plugin owns:
 - Monitor proposal validation and baseline observation;
 - trusted Observer/Detector provider registry;
 - Bundle Type definition validation, registry lifecycle, authorization-filtered
-  discovery, and localized catalog projection;
+  discovery, migration contract, and localized keyset-paginated catalog projection;
+- Session/project-scoped custom Bundle validation, immutable artifact/receipt storage,
+  QuickJS WASM execution, update/rollback, expiry, and safe garbage collection;
+- versioned read-only Capability Provider registration, authorization, schema,
+  timeout, cancellation, response limits, and provider-loss recovery;
 - leased due-check scheduling and run-now;
 - deterministic detectors, retry/degraded/failed lifecycle, one-shot completion,
   and explicit recurring rearm;
@@ -72,9 +76,33 @@ artifact with the registered type/version/origin. The root-Agent
 `relay_create_monitor_from_type` tool then asks Events to baseline and atomically
 commit the proposal; success is returned only after that commit.
 
-Custom Bundle artifacts, Capability Providers, and sandbox execution remain gated by
-the Relay-level Monitor Bundle Platform acceptance plan. They must not be inferred
-from plugin type instantiation.
+Types may declare supported prior versions only with an explicit bounded migration
+function. Unsupported versions report incompatibility and never execute migration
+code. Migration, factory, and catalog provider outputs use the same JSON graph and
+deadline boundaries as creation.
+
+## Custom Bundle Contract
+
+`relay_validate_monitor_bundle` accepts a contract-v1 manifest and source from the
+authenticated root Agent. The manifest declares exactly one Event type, one or more
+resource-scoped read grants, complete English/Chinese presentation, deterministic
+observation and Event schemas, cadence/retry policy, lifecycle, scope, and an
+explicitly zoned expiry within 30 days. Project scope is derived with `realpath` and
+is reusable only inside the exact canonical root or descendants.
+
+Source is copied to mode-0600 content-addressed storage and re-hashed on every read.
+A mode-0600 persistent validation receipt binds source, manifest, authorization,
+owner, and expiry. Installation uses only that receipt and atomically baselines and
+commits one Wait/Monitor. QuickJS WASM removes host, filesystem, network, process,
+module, timer, clock, randomness, and credential authority. `observe` may return one
+declared broker request; `detect` has no capabilities and may emit at most one
+schema-valid Event/check.
+
+Updates require a new receipt and preserve Monitor/Wait identity; baseline failure
+leaves the active version unchanged. Rollback reactivates retained immutable content,
+records a fresh baseline, rejects expired versions, and cannot restore broader
+grants. Expiry terminalizes the Monitor, cancels only its Wait, emits no Event, and
+removes receipt/source only when no other receipt or live Monitor references it.
 
 ## Reliability And Security
 
@@ -95,7 +123,8 @@ from plugin type instantiation.
   entries, each 1–86,400 seconds. Invalid proposals change no Wait or Monitor row.
 - Rearming a recurring Monitor does not replay a prior trigger identity, even when
   that identity disappears and later reappears in the observation.
-- Generated JavaScript and arbitrary network/browser access are rejected in `0.2.1`.
+- Custom JavaScript is accepted only through the contract-v1 QuickJS WASM boundary;
+  arbitrary host/network/browser/process authority remains unavailable.
 - Domain extensions, including Time and GitHub, own their provider-specific
   observation, detection, proposal factories, Events, capabilities, and convenience
   Agent tools.

@@ -10,7 +10,7 @@ const config: UserConfig = {
   sourcemap: true,
   clean: true,
   deps: {
-    neverBundle: specifier => /^node:/.test(specifier) || specifier.startsWith('@deepseek-ai/'),
+    neverBundle: specifier => /^node:/.test(specifier) || specifier.startsWith('@deepseek-ai/') || specifier === 'quickjs-emscripten',
     alwaysBundle: specifier => !specifier.startsWith('@deepseek-ai/'),
   },
 }

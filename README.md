@@ -26,8 +26,11 @@ catalog through the public `relayMonitorBundles` service and the Session-bound
 extensions have actually registered; it is not a static support claim. An Agent can
 instantiate an available entry with `relay_create_monitor_from_type`; Session
 ownership is derived from the root Agent, and success follows baseline plus atomic
-Wait/Monitor commit. Agent-authored Bundle execution is not yet exposed. Core alone
-intentionally reports an empty Bundle Type catalog.
+Wait/Monitor commit. When no registered type fits, the Agent can validate and install
+an expiring Session- or project-scoped custom Bundle. Custom code runs in QuickJS
+WASM with no ambient host authority and can make only schema-checked reads through
+explicitly granted Capability Providers. Updates and rollbacks preserve immutable
+version history. Core alone intentionally reports an empty plugin Bundle Type catalog.
 
 The older `internal` npm channel remains available for integration testing and
 does not carry this compatibility guarantee. Use the exact `0.2.1`
@@ -40,8 +43,10 @@ dsh plugin --profile web add --save-exact \
 dsh web
 ```
 
-Generated JavaScript, arbitrary shell/network access, and customer browser
-credentials are rejected until a real sandbox and capability broker exist.
+Arbitrary shell/network/browser access, mutation providers, environment values, host
+credentials, and raw process PIDs are rejected. Custom Bundle artifacts are copied to
+Relay-owned content-addressed storage, integrity-checked on every read, and collected
+after expiry only when no live Monitor or other receipt references them.
 
 Build this repository with `DSH_ROOT` pointing to a prepared official DSH checkout:
 `npm ci --ignore-scripts && npm run verify && npm pack`. Install the resulting

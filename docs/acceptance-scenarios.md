@@ -30,8 +30,8 @@ Official DSH reference: `dd6322d604e00eec1ba5e0c8541159906a21094a`
 
 ## Monitor Bundle Registry Increment
 
-These rows qualify discovery and plugin-type instantiation only; they do not qualify
-custom code execution.
+These rows qualify discovery and plugin-type instantiation. The following custom and
+provider rows qualify Agent-authored execution.
 
 | ID | Scenario | Required result | Evidence |
 | --- | --- | --- | --- |
@@ -53,3 +53,20 @@ custom code execution.
 | MB02-005 | Factory boundary | Throw, timeout, invalid graph, true cycle, and shared-reference cases are explicit before persistence. | fault unit |
 | MB02-006 | Baseline atomicity | Registry success is not tool success; Events baseline/commit must complete first. | Cordis + SQLite |
 | MB08-002 | Create-from-type tool | Tool has no Session input and returns exact durable IDs/next check after commit. | DSH tool compiler + SQLite |
+
+## Custom Bundle And Capability Provider Increment
+
+| ID | Scenario | Required result | Evidence |
+| --- | --- | --- | --- |
+| MB03-001 | Immutable validation | Source/manifest/owner produce a persistent expiring receipt and content-addressed artifact; tampering fails on read. | QuickJS + filesystem |
+| MB03-002 | Project boundary | Canonical root/descendant reuse succeeds; sibling, parent, prefix collision, and symlink escape fail. | real filesystem |
+| MB03-003 | Invalid manifest | Expiry, locale, Event, grant, schedule, schema, and module faults install nothing. | table unit |
+| MB03-006 | Event boundary | Baseline emits nothing; one transition emits one declared schema-valid stable-key Event; multiple Events fail. | QuickJS + broker |
+| MB03-009 | Update/rollback | Update commits a new immutable version, baseline failure preserves the old one, rollback reuses history and cannot expand grants. | Cordis + SQLite |
+| MB03-010 | Expiry cleanup | Expiry terminalizes without Event; unreferenced receipts/source are removed without deleting shared/live content. | fake clock + restart |
+| MB04-001 | Sandbox isolation | Environment, filesystem, network, process, modules, timers, clock, randomness, WASM, and native authority are absent. | QuickJS WASM |
+| MB04-005 | Sandbox budgets | CPU, memory, stack, depth, node, and output one-over cases return stable redacted failures. | real sandbox |
+| MB04-008 | Provider contract | Duplicate/API/schema/mutate/authorization/output errors fail closed and exact grants succeed. | registry + broker |
+| MB04-009 | Provider lifecycle | Unload rejects late results and degrades affected Monitors; compatible reload recovers without Wait replacement or replay. | Cordis lifecycle |
+| MB05-007 | Time legacy migration | `clock`/`deadline_reached` persisted data retains ID, deadline, Event key, Wait, and continuation under the Time extension. | SQLite + extension alias |
+| MB06-008 | GitHub legacy migration | `github`/`snapshot_changed` persisted data retains stable subject, baseline, correlation, Wait, and continuation. | SQLite + extension alias |

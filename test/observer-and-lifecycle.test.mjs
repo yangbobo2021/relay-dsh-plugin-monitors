@@ -31,6 +31,22 @@ test("observer registry rejects duplicates and delegates observation and detecti
   }), /not registered/);
 });
 
+test("MB04-006/009: observer lifecycle is observable and a result arriving after unload is rejected", async () => {
+  const registry = new RelayMonitorObserverRegistry(new Context());
+  const changes = [];
+  const unsubscribe = registry.subscribe(change => changes.push(change));
+  let release;
+  const pending = new Promise(resolve => { release = resolve; });
+  const dispose = registry.register({ id: "fixture", async observe() { return pending; } });
+  const observation = registry.observe({ monitor: { observer: { provider: "fixture" } } });
+  await new Promise(resolve => setImmediate(resolve));
+  dispose();
+  release({ state: "late" });
+  await assert.rejects(observation, error => error?.errorClass === "provider_unavailable");
+  assert.deepEqual(changes, [{ id: "fixture", state: "registered" }, { id: "fixture", state: "unregistered" }]);
+  unsubscribe();
+});
+
 test("generated code and privileged capabilities fail before baseline", () => {
   for (const monitor of [
     { artifact: { kind: "generated-js" } },
@@ -129,4 +145,7 @@ test("EP11-004/007: observation size, depth, field count, cycles, and boundary v
   const cyclic = {};
   cyclic.self = cyclic;
   assert.throws(() => validateObservationBoundary(cyclic), /cycle/u);
+  const shared = { status: "ok" };
+  assert.deepEqual(validateObservationBoundary({ left: shared, right: shared }), { left: shared, right: shared },
+    "a shared acyclic reference is valid JSON structure, not a cycle");
 });

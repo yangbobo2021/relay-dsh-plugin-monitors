@@ -52,12 +52,16 @@ export class MonitorRuntime {
       );
     } catch (error) {
       if (error.errorClass === "cancelled") return this.store.abandonMonitorCheck(snapshot, this.workerId);
-      result = this.store.failMonitorCheck(
-        snapshot,
-        this.workerId,
-        error.errorClass ?? "source_unavailable",
-        error.stack ?? error.message,
-      );
+      if (error.errorClass === "bundle_expired") {
+        result = this.store.expireMonitorCheck(snapshot, this.workerId);
+      } else {
+        result = this.store.failMonitorCheck(
+          snapshot,
+          this.workerId,
+          error.errorClass ?? "source_unavailable",
+          error.stack ?? error.message,
+        );
+      }
     }
 
     const dispatchResults = [];

@@ -80,7 +80,8 @@ test("MB01-007: an in-flight list is a complete snapshot while new lists reflect
   assert.equal(oldSnapshot.length, 1);
   assert.deepEqual(Object.keys(oldSnapshot[0]).sort(), [
     "api_version", "bundle_version", "capabilities", "description", "event_types", "lifecycle",
-    "locale", "name", "origin", "parameter_schema", "permissions", "remediation", "status", "type_id",
+    "locale", "name", "origin", "parameter_schema", "permissions", "remediation", "status",
+    "supported_prior_versions", "type_id",
   ]);
 });
 
@@ -112,6 +113,8 @@ test("MB01-005: malformed definitions fail before visibility", async () => {
     ["lifecycle", { lifecycle: ["forever"] }],
     ["locale", { locales: { "en-US": completeType().locales["en-US"] } }],
     ["factory", { create: null }],
+    ["prior versions", { bundle_version: 2, supported_prior_versions: [1] }],
+    ["prior versions", { bundle_version: 2, supported_prior_versions: [2], migrate() {} }],
   ];
   for (const [expected, override] of invalid) {
     const registry = new RelayMonitorBundleRegistry(new Context());
@@ -172,4 +175,87 @@ test("MB01-002/006: caller mutation after registration cannot change the visible
   assert.deepEqual(entry.event_types, ["order.approved"]);
   assert.equal(Object.isFrozen(entry), true);
   assert.equal(Object.isFrozen(entry.parameter_schema), true);
+});
+
+test("MB03-001: an owner-filtered Agent catalog provider shares discovery without becoming instantiable", async () => {
+  const registry = new RelayMonitorBundleRegistry(new Context());
+  const provider = {
+    id: "relay.agent-bundles",
+    async listBundleTypes({ locale, authorization }) {
+      if (authorization.sessionId !== "owner") return [];
+      return [{
+        api_version: 1, type_id: "custom.process-exit", bundle_version: 1,
+        origin: { kind: "agent", creator_session: "owner", scope: "session" },
+        event_types: ["process.exited"],
+        parameter_schema: { type: "object", additionalProperties: false, properties: {} },
+        capabilities: ["process.read.status"], lifecycle: ["one_shot"], status: "available", locale,
+        name: locale === "zh-CN" ? "进程退出" : "Process exit",
+        description: "Scoped custom Bundle", permissions: "Reads one process.", remediation: "Issue a new Handle.",
+        artifact_hash: "a".repeat(64), scope: "session", creator_session: "owner", reusable: false,
+        expiry: "2026-09-03T00:00:00.000Z", validation_state: "validated",
+      }];
+    },
+  };
+  const dispose = registry.registerCatalogProvider(provider);
+  assert.deepEqual(await registry.listBundleTypes({ authorization: { sessionId: "other" } }), []);
+  const [entry] = await registry.listBundleTypes({ locale: "zh-CN", authorization: { sessionId: "owner" } });
+  assert.equal(entry.name, "进程退出");
+  await assert.rejects(registry.instantiateBundleType({
+    typeId: entry.type_id, bundleVersion: 1, sessionId: "owner", taskSummary: "x", authorization: { sessionId: "owner" },
+  }), /not registered/u);
+  dispose();
+  assert.deepEqual(await registry.listBundleTypes({ authorization: { sessionId: "owner" } }), []);
+});
+
+test("MB01-003: catalog keyset pagination is deterministic and rejects malformed cursors", async () => {
+  const registry = new RelayMonitorBundleRegistry(new Context());
+  for (const id of ["fixture.c", "fixture.a", "fixture.b"]) registry.registerBundleType(completeType({ type_id: id }));
+  const first = await registry.listBundleTypePage({ limit: 2 });
+  assert.deepEqual(first.bundleTypes.map(entry => entry.type_id), ["fixture.a", "fixture.b"]);
+  assert.equal(first.total, 3);
+  assert.equal(typeof first.nextCursor, "string");
+  const second = await registry.listBundleTypePage({ limit: 2, cursor: first.nextCursor });
+  assert.deepEqual(second.bundleTypes.map(entry => entry.type_id), ["fixture.c"]);
+  assert.equal(second.nextCursor, null);
+  await assert.rejects(registry.listBundleTypePage({ cursor: "not-a-cursor" }), /cursor is invalid/u);
+});
+
+test("MB02-008: version migration is explicit, bounded, authorized, and reports incompatibility without executing", async () => {
+  const registry = new RelayMonitorBundleRegistry(new Context(), { factoryTimeoutMs: 20 });
+  let calls = 0;
+  registry.registerBundleType(completeType({
+    bundle_version: 2,
+    supported_prior_versions: [1],
+    authorize({ projectId }) { return projectId === "allowed"; },
+    migrate({ fromVersion, artifact }) {
+      calls += 1;
+      return { artifact: { ...artifact, type_id: "fixture.order-status", bundle_version: 2, migrated_from: fromVersion } };
+    },
+  }));
+  const [entry] = await registry.listBundleTypes({ authorization: { projectId: "allowed" } });
+  assert.deepEqual(entry.supported_prior_versions, [1]);
+  const migrated = await registry.migrateBundleArtifact({ typeId: "fixture.order-status", fromVersion: 1, toVersion: 2,
+    artifact: { type_id: "fixture.order-status", bundle_version: 1 }, authorization: { projectId: "allowed" } });
+  assert.equal(migrated.compatible, true);
+  assert.equal(migrated.artifact.migrated_from, 1);
+  await assert.rejects(registry.migrateBundleArtifact({ typeId: "fixture.order-status", fromVersion: 1, toVersion: 2,
+    artifact: {}, authorization: { projectId: "denied" } }), /not authorized/u);
+  const unsupported = await registry.migrateBundleArtifact({ typeId: "fixture.order-status", fromVersion: 3, toVersion: 2,
+    artifact: {}, authorization: { projectId: "allowed" } }).catch(error => error);
+  assert.match(unsupported.message, /source version is invalid/u);
+  assert.equal(calls, 1);
+});
+
+test("MB02-008: an unsupported prior version is explicitly incompatible and a migration timeout fails closed", async () => {
+  const registry = new RelayMonitorBundleRegistry(new Context(), { factoryTimeoutMs: 10 });
+  registry.registerBundleType(completeType({
+    bundle_version: 3,
+    supported_prior_versions: [2],
+    async migrate() { await new Promise(() => {}); },
+  }));
+  assert.deepEqual(await registry.migrateBundleArtifact({ typeId: "fixture.order-status", fromVersion: 1, toVersion: 3, artifact: {} }), {
+    compatible: false, reason: "unsupported_prior_version", fromVersion: 1, toVersion: 3,
+  });
+  await assert.rejects(registry.migrateBundleArtifact({ typeId: "fixture.order-status", fromVersion: 2, toVersion: 3,
+    artifact: {} }), /timed out/u);
 });

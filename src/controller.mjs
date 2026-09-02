@@ -3,10 +3,12 @@ import { validateArtifactBoundary } from "./observer-registry.mjs";
 import { randomUUID } from "node:crypto";
 
 export class RelayMonitorsController {
-  constructor({ events, observers, logger = console, pollIntervalMs = 1_000, observationTimeoutMs = 30_000, workerId = `relay-monitors-${randomUUID()}` }) {
+  constructor({ events, observers, capabilities = null, maintenance = null, logger = console, pollIntervalMs = 1_000, observationTimeoutMs = 30_000, workerId = `relay-monitors-${randomUUID()}` }) {
     if (events?.apiVersion !== 1) throw new Error(`Monitors requires relayEvents API v1, received ${events?.apiVersion}`);
     this.events = events;
     this.observers = observers;
+    this.capabilities = capabilities;
+    this.maintenance = typeof maintenance === "function" ? maintenance : null;
     this.logger = logger;
     this.pollIntervalMs = positiveInteger(pollIntervalMs, 1_000);
     this.stopped = false;
@@ -27,12 +29,24 @@ export class RelayMonitorsController {
     this.provider = Object.freeze({
       id: "relay.monitors",
       prepare: input => this.run(() => this.prepare(input)),
-      checkMonitor: (id, options) => this.run(() => this.runtime.checkMonitor(id, options)),
+      checkMonitor: (id, options) => this.run(async () => {
+        const result = await this.runtime.checkMonitor(id, options);
+        await this.runMaintenance();
+        return result;
+      }),
     });
+    this.availabilityDisposers = [];
+    if (typeof observers.subscribe === "function") {
+      this.availabilityDisposers.push(observers.subscribe(change => this.queueAvailabilityAudit("observer", change.id)));
+    }
+    if (typeof capabilities?.subscribe === "function") {
+      this.availabilityDisposers.push(capabilities.subscribe(change => this.queueAvailabilityAudit("capability", change.id)));
+    }
   }
 
   start() {
     this.schedule(0);
+    this.queueAvailabilityAudit("all", null, { missingOnly: true });
   }
 
   async prepare({ waits, monitors }) {
@@ -44,7 +58,11 @@ export class RelayMonitorsController {
     if (this.stopped) return;
     this.timer = setTimeout(() => {
       if (this.stopped) return;
-      void this.run(() => this.runtime.runDue()).catch(error => {
+      void this.run(async () => {
+        const results = await this.runtime.runDue();
+        await this.runMaintenance();
+        return results;
+      }).catch(error => {
         this.logger.error?.(`Relay Monitor worker failed: ${error?.stack ?? error}`);
       }).finally(() => this.schedule());
     }, delay);
@@ -55,8 +73,40 @@ export class RelayMonitorsController {
     this.stopped = true;
     this.accepting = false;
     this.abort.abort(new Error("Relay Monitors is shutting down"));
+    for (const dispose of this.availabilityDisposers.splice(0)) dispose();
     if (this.timer) clearTimeout(this.timer);
     await Promise.allSettled([...this.inFlight]);
+  }
+
+  async runMaintenance() {
+    if (!this.maintenance) return;
+    try { await this.maintenance(); }
+    catch (error) { this.logger.error?.(`Relay Monitor maintenance failed: ${error?.stack ?? error}`); }
+  }
+
+  queueAvailabilityAudit(kind, id, options = {}) {
+    queueMicrotask(() => {
+      if (!this.accepting) return;
+      void this.run(() => this.auditAvailability(kind, id, options)).catch(error => {
+        this.logger.error?.(`Relay Monitor availability audit failed: ${error?.stack ?? error}`);
+      });
+    });
+  }
+
+  async auditAvailability(kind, id, { missingOnly = false } = {}) {
+    const registrations = this.events.listWaits();
+    for (const monitor of registrations.flatMap(registration => registration.monitors ?? [])) {
+      if (!new Set(["active", "degraded"]).has(monitor.state) || monitor.paused) continue;
+      const observerId = monitor.observer?.provider;
+      const grants = monitor.artifact?.manifest?.capability_grants ?? [];
+      const affected = kind === "all"
+        ? !this.observers.has?.(observerId) || grants.some(grant => !this.capabilities?.hasCapabilityProvider?.(grant.provider))
+        : kind === "observer" ? observerId === id : grants.some(grant => grant.provider === id);
+      if (!affected) continue;
+      if (missingOnly && this.observers.has?.(observerId)
+        && grants.every(grant => this.capabilities?.hasCapabilityProvider?.(grant.provider))) continue;
+      await this.runtime.checkMonitor(monitor.monitor_id, { force: true });
+    }
   }
 
   async observe(input) {
@@ -99,19 +149,24 @@ export class RelayMonitorsController {
 
 export function validateObservationBoundary(value, { maxBytes = 262_144, maxDepth = 32, maxNodes = 10_000 } = {}) {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw observationError("Monitor observation must be an object");
-  const seen = new Set();
-  const stack = [{ value, depth: 0 }];
+  const ancestors = new Set();
+  const stack = [{ value, depth: 0, leaving: false }];
   let nodes = 0;
   while (stack.length > 0) {
     const current = stack.pop();
+    if (current.leaving) {
+      ancestors.delete(current.value);
+      continue;
+    }
     if (current.depth > maxDepth) throw observationError("Monitor observation exceeded the depth limit");
     if (current.value && typeof current.value === "object") {
-      if (seen.has(current.value)) throw observationError("Monitor observation contains a cycle");
-      seen.add(current.value);
+      if (ancestors.has(current.value)) throw observationError("Monitor observation contains a cycle");
+      ancestors.add(current.value);
+      stack.push({ value: current.value, depth: current.depth, leaving: true });
       for (const child of Array.isArray(current.value) ? current.value : Object.values(current.value)) {
         nodes += 1;
         if (nodes > maxNodes) throw observationError("Monitor observation exceeded the field limit");
-        if (child && typeof child === "object") stack.push({ value: child, depth: current.depth + 1 });
+        if (child && typeof child === "object") stack.push({ value: child, depth: current.depth + 1, leaving: false });
       }
     }
   }
@@ -133,6 +188,7 @@ function monitorStore(events) {
     beginMonitorCheck: (...args) => events.beginMonitorCheck(...args),
     completeMonitorCheck: (...args) => events.completeMonitorCheck(...args),
     failMonitorCheck: (...args) => events.failMonitorCheck(...args),
+    expireMonitorCheck: (...args) => events.expireMonitorCheck(...args),
     abandonMonitorCheck: (...args) => events.abandonMonitorCheck(...args),
     listDueMonitors: (...args) => events.listDueMonitors(...args),
   };

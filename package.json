@@ -28,7 +28,7 @@
     "pretest": "npm run prepare:dsh",
     "prebuild": "npm run prepare:dsh && node -e \"require('node:fs').rmSync('lib',{recursive:true,force:true})\"",
     "build": "tsdown --config tsdown.config.ts",
-    "typecheck": "node --check host-plugin.js && node --check agent-bridge.js && node --check src/bundle-registry.mjs && node --check src/parameter-schema.mjs && node --check src/controller.mjs && node --check src/runtime.mjs",
+    "typecheck": "node --check host-plugin.js && node --check agent-bridge.js && node --check src/artifact-store.mjs && node --check src/bundle-registry.mjs && node --check src/capability-registry.mjs && node --check src/custom-bundles.mjs && node --check src/parameter-schema.mjs && node --check src/sandbox.mjs && node --check src/controller.mjs && node --check src/runtime.mjs",
     "test": "node --test test/*.test.mjs",
     "verify": "npm run typecheck && npm test && npm run build && npm pack --dry-run"
   },
@@ -69,5 +69,8 @@
   "devDependencies": {
     "relay-dsh-plugin-events": "github:yangbobo2021/relay-dsh-plugin-events#1c320df544a7088b9ee3238ebeb6f90fa8f37979",
     "tsdown": "0.22.2"
+  },
+  "dependencies": {
+    "quickjs-emscripten": "0.32.0"
   }
 }
