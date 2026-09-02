@@ -1,5 +1,18 @@
 # Monitors Test Review
 
+## Review 6 — isolated sandbox budgets
+
+The resource-limit acceptance originally reused a 5 ms wall-clock sandbox for CPU,
+memory, invalid-module, invalid-output, and output-size assertions. Under concurrent
+repository load, a valid invalid-module probe could hit the wall-clock deadline first,
+so the test exercised `resource_limit` instead of its intended `invalid_module`
+boundary. The corrected test gives CPU, memory, and contract/output cases independent
+sandboxes: the infinite loop retains the 5 ms deadline, the memory pressure case gets
+the normal 100 ms deadline and a 1 MiB heap, and ordinary contract/output checks use
+the production default deadline. Ten consecutive production-QuickJS executions pass,
+and the memory case now requires `resource_limit` instead of accepting an output-limit
+fallback.
+
 ## Review 1 — plugin boundary
 
 - Verified Monitors receives only the `relayEvents` v1 high-level service and
