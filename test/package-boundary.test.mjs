@@ -10,7 +10,7 @@ test("Monitors has only a public Events peer and no Event persistence implementa
   const detectors = await readFile(new URL("../src/detectors.mjs", import.meta.url), "utf8");
   const agentBridge = await readFile(new URL("../agent-bridge.js", import.meta.url), "utf8");
   const acceptance = await readFile(new URL("../docs/acceptance-scenarios.md", import.meta.url), "utf8");
-  assert.equal(manifest.peerDependencies["relay-dsh-plugin-events"], "0.2.1");
+  assert.equal(manifest.peerDependencies["relay-dsh-plugin-events"], "0.2.2");
   assert.match(host, /ctx\.inject\(\["relayEvents"\]/);
   assert.doesNotMatch(host, /SQLite|RelayStore|codex|claude/);
   for (const source of [host, controller, observers, detectors, agentBridge]) {

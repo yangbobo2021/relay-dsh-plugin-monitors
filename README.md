@@ -1,13 +1,13 @@
 # Relay Monitors for DeepSeek Harness
 
-> Published `0.2.1` supports DSH `0.1.2-alpha.3`. This source tree is developing
-> Monitor Core `0.3.0`; install the Time extension separately when using this source.
+> **Now supports DSH `0.1.2-rc.1` while retaining `0.1.2-alpha.3` compatibility.**
+> Monitor Core `0.3.1` is verified on both releases; install Monitor extensions separately.
 
-> **Release channels:** `latest` → `0.2.1`; `next` → `0.2.1-rc.1`.
+> **Release channels:** `latest` → `0.3.1`; `next` → `0.2.1-rc.1`.
 
 ```bash
-npx @deepseek-ai/dsh@0.1.2-alpha.3 plugin --profile web add relay-dsh-plugin-events@0.2.1 relay-dsh-plugin-monitors@0.2.1
-npx @deepseek-ai/dsh@0.1.2-alpha.3 web
+npx @deepseek-ai/dsh@0.1.2-rc.1 plugin --profile web add relay-dsh-plugin-events@0.2.2 relay-dsh-plugin-monitors@0.3.1
+npx @deepseek-ai/dsh@0.1.2-rc.1 web
 ```
 
 [![DSH compatibility](https://img.shields.io/badge/DSH-0.1.1--rc.2%20%7C%200.1.2--alpha.2%20%7C%200.1.2--alpha.3-2f7d68)](https://github.com/deepseek-ai/deepseek-harness)
