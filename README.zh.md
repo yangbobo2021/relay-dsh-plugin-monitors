@@ -1,13 +1,14 @@
 # 面向 DeepSeek Harness 的 Relay Monitors
 
-> **现已支持 DSH `0.1.2-rc.1`，并保留对 `0.1.2-alpha.3` 的兼容。**
-> Monitor Core `0.3.1` 已在两个版本上验证；Monitor 扩展需单独安装。
+> **候选版本 `0.3.2-rc.2` 已在官方 DSH `0.1.5-rc.2` 和
+> `0.1.6-alpha.1` 上验证。** 无需修改实现，peer 元数据已声明两个精确版本；
+> Monitor 扩展需单独安装。
 
-> **发布通道：** `latest` → `0.3.1`；`next` → `0.2.1-rc.1`。
+> **发布通道：** `latest` → `0.3.1`；`next` → `0.3.2-rc.2`。
 
 ```bash
-npx @deepseek-ai/dsh@0.1.2-rc.1 plugin --profile web add relay-dsh-plugin-events@0.2.3-rc.1 relay-dsh-plugin-monitors@0.3.2-rc.1
-npx @deepseek-ai/dsh@0.1.2-rc.1 web
+npx @deepseek-ai/dsh@0.1.6-alpha.1 plugin --profile web add relay-dsh-plugin-events@next relay-dsh-plugin-monitors@next
+npx @deepseek-ai/dsh@0.1.6-alpha.1 web
 ```
 
 [![DSH 兼容版本](https://img.shields.io/badge/DSH-0.1.1--rc.2%20%7C%200.1.2--alpha.2%20%7C%200.1.2--alpha.3-2f7d68)](https://github.com/deepseek-ai/deepseek-harness)
