@@ -4,7 +4,7 @@
 > `0.1.6-alpha.1` 上验证。** 无需修改实现，peer 元数据已声明两个精确版本；
 > Monitor 扩展需单独安装。
 
-> **发布通道：** `latest` → `0.3.2`；`next` → `0.3.2-rc.2`。
+> **发布通道：** `latest` → `0.3.2`；`next` → `0.3.3-rc.1`。
 
 ```bash
 npx @deepseek-ai/dsh@0.1.6-alpha.1 plugin --profile web add relay-dsh-plugin-events@next relay-dsh-plugin-monitors@next
