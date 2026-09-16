@@ -1,6 +1,6 @@
 {
   "name": "relay-dsh-plugin-monitors",
-  "version": "0.3.2",
+  "version": "0.3.3-rc.1",
   "description": "Extensible durable Monitor Core and Bundle registry for Relay Events on DeepSeek Harness.",
   "keywords": [
     "dsh-plugin",
